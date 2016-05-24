@@ -107,8 +107,8 @@ char* make_tracker_request(int event, int* mlen,struct globalInfo_t *info)
             break;
     }
 
-    strcpy(cur," HTTP/1.1\r\n\r\n");
-    cur += strlen(" HTTP/1.1\r\n\r\n");
+    strcpy(cur," HTTP/1.0\r\n\r\n");
+    cur += strlen(" HTTP/1.0\r\n\r\n");
 
     *cur = '\0';
 
