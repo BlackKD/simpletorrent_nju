@@ -1,4 +1,8 @@
 
+#include <stdbool.h>
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
 #include "btdata.h"
 #include "util.h"
 
@@ -10,119 +14,113 @@
 // Pragma: no-cache (18个字节)
 // \r\n  (空行, 表示数据的开始)
 // data                  注意: 从这开始是数据, 但并没有一个data标签
+
+int readn(int fd, char *bp, size_t len)
+{
+  int cnt;
+  int rc;
+
+  cnt = len;
+  while ( cnt > 0 )
+  {
+    rc = recv( fd, bp, cnt, 0 );
+    if ( rc < 0 )       /* read error? */
+    {
+      if ( errno == EINTR ) /* interrupted? */
+        continue;     /* restart the read */
+            printf("%s\n", strerror(errno));
+      return -1;        /* return error */
+    }
+    if ( rc == 0 )        /* EOF? */
+      return len - cnt;   /* return short count */
+    bp += rc;
+    cnt -= rc;
+  }
+  return len;
+}
+
 tracker_response* preprocess_tracker_response(int sockfd)
 { 
-   char rcvline[MAXLINE];
-   char tmp[MAXLINE];
-   char* data;
-   int len;
-   int offset = 0;
-   int datasize = -1;
-   printf("Reading tracker response...\n");
-   // HTTP LINE
-   len = recv(sockfd,rcvline,17,0);
-   if(len < 0)
-   {
-     perror("Error, cannot read socket from tracker");
-     exit(-6);
-   }
-   strncpy(tmp,rcvline,17);
-   
-   if(strncmp(tmp,"HTTP/1.0 200 OK\r\n",strlen("HTTP/1.0 200 OK\r\n")))
-   {
-     perror("Error, didn't match HTTP line");
-     exit(-6);
-   }
-   memset(rcvline,0xFF,MAXLINE);
-   memset(tmp,0x0,MAXLINE);
-   // Content-Length
-   len = recv(sockfd,rcvline,16,0);
-   if(len <= 0)
-   {
-     perror("Error, cannot read socket from tracker");
-     exit(-6);
-   }
-   strncpy(tmp,rcvline,16);
-   if(strncmp(tmp,"Content-Length: ",strlen("Content-Length: ")))
-   {
-     perror("Error, didn't match Content-Length line");
-     exit(-6);
-   }
-   memset(rcvline,0xFF,MAXLINE);
-   memset(tmp,0x0,MAXLINE);
-   // 读取Content-Length的数据部分
-   char c[2];
-   char num[MAXLINE];
-   int count = 0;
-   c[0] = 0; c[1] = 0;
-   while(c[0] != '\r' && c[1] != '\n')
-   {
-      len = recv(sockfd,rcvline,1,0);
-      if(len <= 0)
-      {
-        perror("Error, cannot read socket from tracker");
-        exit(-6);
-      }
-      num[count] = rcvline[0];
-      c[0] = c[1];
-      c[1] = num[count];
-      count++;
-   }
-   datasize = atoi(num);
-   //printf("NUMBER RECEIVED: %d\n",datasize);
-   memset(rcvline,0xFF,MAXLINE);
-   memset(num,0x0,MAXLINE);
-   // 读取Content-type和Pragma行
-   len = recv(sockfd,rcvline,26,0);
-   if(len <= 0)
-   {
-     perror("Error, cannot read socket from tracker");
-     exit(-6);
-   }
-   len = recv(sockfd,rcvline,18,0);
-   if(len <= 0)
-   {
-     perror("Error, cannot read socket from tracker");
-     exit(-6);
-   }
-   // 去除响应中额外的\r\n空行
-   len = recv(sockfd,rcvline,2,0);
-   if(len <= 0)
-   {
-     perror("Error, cannot read socket from tracker");
-     exit(-6);
-   }
+    char recvline[MAXLINE];
+    char head[MAXLINE];
+    int len = -1;
+    int offset = 0;
+    memset(recvline, 0, MAXLINE);
+    printf("Reading tracker response...\n");
+    
+    // Read HTTP header
+    // keep reading until read double \r\n
+    while(1 == readn(sockfd, &recvline[offset], 1)){
+        if (recvline[offset] == '\r'){
+            readn(sockfd, &recvline[offset + 1], 3);
+            if (strncmp(&recvline[offset], "\r\n\r\n", 4) == 0){
+                offset += 4;
+                break;
+            }
+            offset += 4;
+            continue;
+        }
+        offset += 1;
+    }
 
-   // 分配空间并读取数据, 为结尾的\0预留空间
-   int i; 
-   data = (char*)malloc((datasize+1)*sizeof(char));
-   for(i=0; i<datasize; i++)
-   {
-      len = recv(sockfd,data+i,1,0);
-      if(len < 0)
-      {
-        perror("Error, cannot read socket from tracker");
-        exit(-6);
-      }
-   }
-   data[datasize] = '\0';
-   
-   for(i=0; i<datasize; i++)
-     printf("%c",data[i]);
-   printf("\n");
-   
-   // 分配, 填充并返回tracker_response结构.
-   tracker_response* ret;
-   ret = (tracker_response*)malloc(sizeof(tracker_response));
-   if(ret == NULL)
-   {
-     printf("Error allocating tracker_response ptr\n");
-     return 0;
-   }
-   ret->size = datasize;
-   ret->data = data;
+    // parsering HTTP header
+    memset(head, 0, MAXLINE);
+    memcpy(head, recvline, offset);
+    char *begin, *end;
+    begin = head;
+    while(begin < &head[offset] && (end = strstr(begin, "\r\n"), end != NULL)){
+        if (begin == end){
+            break;
+        } else {
+            char buf[80];
+            memset(buf, 0, 80);
+            memcpy(buf, begin, end - begin);
+            if (begin == head){
+                if(memcmp(buf, "HTTP/1.1 200 OK", sizeof("HTTP/1.1 200 OK") - 1) != 0 && memcmp(buf, "HTTP/1.0 200 OK", sizeof("HTTP/1.0 200 OK") - 1) != 0)
+                {
+                    printf("Wrong tracker response: %s\n", buf);
+                    return NULL;
+                }
 
-   return ret;
+            } else if (memcmp(buf, "Content-Length", sizeof("Content-Length") - 1) == 0){
+                char *plen = begin + sizeof("Content-Length") + 1;
+                char lenfield[20];
+                memset(lenfield, 0, 20);
+                memcpy(lenfield, plen, end - plen);
+                len = atoi(lenfield);
+            }
+            begin = end + 2;
+        }
+    }
+
+    // read HTTP content
+    //assert(len != -1 && "HTTP header should have the Content-Length item");
+    memset(recvline, 0, MAXLINE);
+    if (len != -1){
+        if (readn(sockfd, recvline, len) < 0){
+            printf("Error when read HTTP content\n");
+            return NULL;
+        }
+    } else {
+        if ((len = read(sockfd, recvline, MAXLINE)) < 0){
+            printf("Error when read HTTP content\n");
+            return NULL;
+        }
+    }
+
+    tracker_response* ret;
+    ret = (tracker_response*)malloc(sizeof(tracker_response));
+    if(ret == NULL)
+    {
+        printf("Error allocating tracker_response ptr\n");
+        return 0;
+    }
+    ret->size = len;
+    ret->data = (char *)malloc(len + 1);
+    memcpy(ret->data, recvline, len);
+    ret->data[len] = '\0';
+
+    return ret;
 }
 
 // 解码B编码的数据, 将解码后的数据放入tracker_data结构
@@ -173,45 +171,63 @@ tracker_data* get_tracker_data(char* data, int len)
   return ret;
 }
 // 处理来自Tracker的字典模式的peer列表
+
 void get_peers(tracker_data* td, be_node* peer_list)
 {
-  int i;
-  int numpeers = 0;
+    int i;
+    int numpeers = 0;
+    if (peer_list->type == BE_STR){
+        long long peerlen = be_str_len(peer_list);
+        int peersnum = peerlen / 6;
+        td->numpeers = peersnum;
+        td->peers = (peerdata *)malloc(peersnum * sizeof(peerdata));
+        int i;
+        for (i = 0; i < peersnum; i++)
+        {
+            unsigned char *begin = (unsigned char *)peer_list->val.s + (i * 6);
+            sprintf(td->peers[i].ip, "%d.%d.%d.%d", begin[0], begin[1], begin[2], begin[3]);
+            td->peers[i].port = (begin[4] << 8) + begin[5];
+            memset(td->peers[i].id, 0, sizeof(td->peers[i].id));
+        }
+    } 
+     else if (peer_list->type == BE_DICT){ 
+        // 计算列表中的peer数
+        for (i=0; peer_list->val.l[i] != NULL; i++)
+        {
+            // 确认元素是一个字典
+            if(peer_list->val.l[i]->type != BE_DICT)
+            {
+                perror("Expecting dict, got something else");
+                exit(-12);
+            }
 
-  // 计算列表中的peer数
-  for (i=0; peer_list->val.l[i] != NULL; i++)
-  {
-    // 确认元素是一个字典
-    if(peer_list->val.l[i]->type != BE_DICT)
-    {
-      perror("Expecting dict, got something else");
-      exit(-12);
+            // 找到一个peer, 增加numpeers
+            numpeers++;
+        }
+
+        printf("Num peers: %d\n",numpeers);
+
+        // 为peer分配空间
+        td->numpeers = numpeers;
+        td->peers = (peerdata*)malloc(numpeers*sizeof(peerdata));
+        if(td->peers == NULL)
+        {
+            perror("Couldn't allocate peers");
+            exit(-12);
+        }
+
+        // 获取每个peer的数据
+        for (i=0; peer_list->val.l[i] != NULL; i++)
+        {
+            get_peer_data(&(td->peers[i]),peer_list->val.l[i]);
+        }
+    } else {
+        assert(false && "peers should be dict or string! something wrong");
     }
 
-    // 找到一个peer, 增加numpeers
-    numpeers++;
-  }
-
-  printf("Num peers: %d\n",numpeers);
-
-  // 为peer分配空间
-  td->numpeers = numpeers;
-  td->peers = (peerdata*)malloc(numpeers*sizeof(peerdata));
-  if(td->peers == NULL)
-  {
-    perror("Couldn't allocate peers");
-    exit(-12);
-  }
-
-  // 获取每个peer的数据
-  for (i=0; peer_list->val.l[i] != NULL; i++)
-  {
-    get_peer_data(&(td->peers[i]),peer_list->val.l[i]);
-  }
-
-  return;
-
+    return;
 }
+
 
 // 给出一个peerdata的指针和一个peer的字典数据, 填充peerdata结构
 void get_peer_data(peerdata* peer, be_node* ben_res)
@@ -247,10 +263,10 @@ void get_peer_data(peerdata* peer, be_node* ben_res)
     if(!strncmp(ben_res->val.d[i].key,"ip",strlen("ip")))
     {
       int len;
-      //printf("Peer ip: %s\n",ben_res->val.d[i].val->val.s);
+      
       len = strlen(ben_res->val.d[i].val->val.s);
-      peer->ip = (char*)malloc((len+1)*sizeof(char));
-      strcpy(peer->ip,ben_res->val.d[i].val->val.s);
+      strcpy(peer->ip,ben_res->val.d[i].val->val.s);    
+      printf("dict Peer ip: %s\n",peer->ip);
     }
     // port键
     if(!strncmp(ben_res->val.d[i].key,"port",strlen("port")))

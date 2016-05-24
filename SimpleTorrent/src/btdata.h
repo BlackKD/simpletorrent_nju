@@ -52,7 +52,7 @@ typedef struct _announce_url_t {
 typedef struct _peerdata {
     char id[21]; // 20用于null终止符
     int port;
-    char *ip; // Null终止
+    char ip[16]; // Null终止
 } peerdata;
 
 // 包含在tracker响应中的数据

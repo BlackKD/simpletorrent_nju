@@ -168,10 +168,13 @@ int main ( int argc, char *argv[] )
 
     printf("Parsing tracker data\n");
     globalInfo.g_tracker_response = get_tracker_data(tmp2,tr->size);
+    printf("heer\n");
     free(tmp2);
     tmp2 = NULL;
     free(tr->data);
     free(tr);
+
+
 #ifdef DEBUG
         printf("Num Peers: %d\n", globalInfo.g_tracker_response->numpeers);
         for (i = 0; i < globalInfo.g_tracker_response->numpeers; i++){
