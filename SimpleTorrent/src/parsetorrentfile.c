@@ -78,6 +78,7 @@ torrentmetadata_t* parsetorrentfile(char* filename)
     if(!strncmp(ben_res->val.d[i].key,"announce",strlen("announce")))
     {
 	  ret->announce = (char*)malloc(strlen(ben_res->val.d[i].val->val.s)*sizeof(char));
+    memset(ret->announce, 0, be_str_len(ben_res->val.d[i].val) + 1);
 	  memcpy(ret->announce,ben_res->val.d[i].val->val.s,strlen(ben_res->val.d[i].val->val.s));
       filled++;
     }
@@ -97,6 +98,8 @@ torrentmetadata_t* parsetorrentfile(char* filename)
         if(!strncmp(idict[j].key,"length",strlen("length")))
         {
           ret->length = idict[j].val->val.i;
+          ret->flist.size = idict[j].val->val.i;
+          ret->flist.begin_index = 0;
           filled++;
         }
         if(!strncmp(idict[j].key,"name",strlen("name")))
