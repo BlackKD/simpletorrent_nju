@@ -16,6 +16,7 @@
 #include "util.h"
 #include "btdata.h"
 #include "bencode.h"
+#include "peer_wire.h"
 
 struct globalArgs_t globalArgs;
 int listenfd;
@@ -46,6 +47,7 @@ void *port_listen(void *arg){
         }
         printf("receive a connect from %s\n", inet_ntoa(cliaddr.sin_addr));
         //！！！！添加p2p处理程序  套接字为connfd
+        peer_accept(connfd);
     }
 
     return NULL;

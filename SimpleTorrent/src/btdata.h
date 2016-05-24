@@ -72,14 +72,4 @@ typedef struct _tracker_request {
     char ip[16]; // 自己的IP地址, 格式为XXX.XXX.XXX.XXX, 最后以'\0'结尾
 } tracker_request;
 
-// 针对到一个peer的已建立连接, 维护相关数据
-typedef struct _peer_t {
-    int sockfd;
-    int choking;        // 作为上传者, 阻塞远端peer
-    int interested;     // 远端peer对我们的分片有兴趣
-    int choked;         // 作为下载者, 我们被远端peer阻塞
-    int have_interest;  // 作为下载者, 对远端peer的分片有兴趣
-    char name[20]; 
-} peer_t;
-
 #endif
