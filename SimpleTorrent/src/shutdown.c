@@ -9,7 +9,7 @@ void client_shutdown(int sig)
     // 这控制了其他peer连接的套接字和连接到其他peer的线程.
     int sockfd = connect_to_host(globalInfo.g_tracker_ip, globalInfo.g_tracker_port);
     int request_len = 0;
-    char *request = make_tracker_request(&globalInfo, BT_STOPPED, &request_len);
+    char *request = make_tracker_request( BT_STOPPED, &request_len,&globalInfo);
     send(sockfd, request, request_len, 0);
     free(request);
     close(sockfd);
