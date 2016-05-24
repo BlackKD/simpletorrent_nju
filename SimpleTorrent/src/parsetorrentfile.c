@@ -106,6 +106,7 @@ torrentmetadata_t* parsetorrentfile(char* filename)
         {
           ret->name = (char*)malloc(strlen(idict[j].val->val.s)*sizeof(char));
           memcpy(ret->name,idict[j].val->val.s,strlen(idict[j].val->val.s));
+          strcpy(ret->flist.filename, ret->name);
           filled++;
         }
         if(!strncmp(idict[j].key,"piece length",strlen("piece length")))

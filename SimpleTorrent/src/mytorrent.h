@@ -3,7 +3,7 @@
 
 #ifndef __GLOBAL_H_
 #define __GLOBAL_H_
-
+#define DEBUG
 
 
 struct globalInfo_t{
