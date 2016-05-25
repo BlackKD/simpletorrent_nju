@@ -1,20 +1,21 @@
 #ifndef __PEERS_POOL_H__
 #define __PEERS_POOL_H__
 
-#define STATE_I_SEND_HANDSHAKE_FIRST
-#define STATE_PEER_SEND_HANDSHAKE_FIRST
-#define STATE_CONNECTED
+#define TRUE 1  // enable  a state
+#define FALSE 0  // disable a state
 
-// 针对到一个peer的已建立连接, 维护相关数据
-typedef struct _peer_t {
-    int connfd;
-    int state;
-    int choking;        // 作为上传者, 阻塞远端peer
-    int interested;     // 远端peer对我们的分片有兴趣
-    int choked;         // 作为下载者, 我们被远端peer阻塞
-    int have_interest;  // 作为下载者, 对远端peer的分片有兴趣
-    char peer_id[20]; 
-} peer_t;
+#include "mytorrent.h"
+#include "btdata.h"
 
+typedef struct _peerpool_node_t {
+	peer_t *peer;
+	struct _peerpool_node_t *next;
+} peerpool_node_t;
+
+extern peerpool_node_t *g_peerpool_head;
+
+peerpool_node_t *find_peernode(char peer_id[20]);
+peerdata *find_peer_from_tracker(char peer_id[20]);
+peer_t *pool_add_peer(int connfd, char peer_id[20]);
 
 #endif

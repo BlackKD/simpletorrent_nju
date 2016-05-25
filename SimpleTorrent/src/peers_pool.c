@@ -1,0 +1,81 @@
+#include "mytorrent.h"
+#include "btdata.h"
+#include "peer_wire.h"
+#include "peers_pool.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+peerpool_node_t *g_peerpool_head = NULL; // list
+
+/*
+ * New a peer_t,
+ * init it,
+ * insert it into the pool,
+ * On success, return its pointer.
+ * On error, return NULL
+ */
+peer_t *pool_add_peer(int connfd, char peer_id[20]) {
+	peer_t *p = (peer_t *)malloc(sizeof(peer_t));
+	if (p != NULL) {
+		printf("pool_new_peer malloc peer_t error!\n");
+		return NULL;
+	}
+	else {
+		// set peer's information
+		p->connfd = connfd;
+		strncpy(p->peer_id, peer_id, 20);
+		// set states
+		p->am_choking      = TRUE;
+		p->am_interested   = FALSE;
+		p->peer_choking    = TRUE;
+		p->peer_interested = FALSE;
+	}
+
+	// new peerpool_node_t
+	peerpool_node_t *node = (peerpool_node_t *)malloc(sizeof(peerpool_node_t));
+	if (node == NULL) {
+		free(p);
+		printf("pool_new_peer malloc node error.\n");
+		return NULL;
+	}
+	else {
+		node->peer = p;
+	} 
+
+	// insert it
+	if (g_peerpool_head != NULL) {
+		peerpool_node_t *temp = g_peerpool_head;
+		g_peerpool_head       = node;
+		g_peerpool_head->next = temp;
+	}
+	else {
+		g_peerpool_head       = node;
+		g_peerpool_head->next = NULL;
+	}
+
+	return p;
+}
+
+/*
+ * Find the peer whose peer_id == peer_id
+ * On success, a pointer to the peerpool_node_t is returned
+ * On failure, NULL is returned
+ */
+peerpool_node_t *find_peernode(char peer_id[20]) {
+	peerpool_node_t *p = g_peerpool_head;
+	while (p != NULL) {
+		if (strncmp(p->peer->peer_id, peer_id, 20) == 0) {
+			return p;
+		}
+		else
+			p = p->next;
+	}
+	return NULL;
+}
+
+peerdata *find_peer_from_tracker(char peer_id[20]) {
+	return NULL;
+}
+

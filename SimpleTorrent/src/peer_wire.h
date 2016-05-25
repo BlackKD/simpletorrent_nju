@@ -1,9 +1,9 @@
 #ifndef __PEERWIRE_H__
 #define __PEERWIRE_H__
 
-
-int peer_accept(int connfd);
-void *wait_handshake(void *);
+#include "btdata.h"
+#include "mytorrent.h"
+#include "peers_pool.h"
 
 struct handshake_seg_ {
 	char c;             // should be '\19'
@@ -13,5 +13,19 @@ struct handshake_seg_ {
 	char peer_id[20];   // 20-byte peer id which is reported in tracker requests and contained in peer lists in tracker responses
 };
 typedef struct handshake_seg_ handshake_seg;
+
+struct message_handler_arg_ {
+	peer_t *peerT;
+	peerdata *peerData;
+};
+typedef struct message_handler_arg_ message_handler_arg;
+
+
+int peer_accept(int connfd);
+void *wait_first_handshake(void *arg);
+void *wait_second_handshake(void *arg);
+int handshake_handler(handshake_seg * seg, int flag, int connfd);
+void *message_handler(void *arg);
+int send_handshake(int connfd);
 
 #endif

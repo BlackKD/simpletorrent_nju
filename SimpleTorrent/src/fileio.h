@@ -11,7 +11,7 @@ struct fileinfo_t {
     int size;
 };
 
- typedef struct hashptr_t{
+struct hashptr_t{
  	int hash[5];
  };
 

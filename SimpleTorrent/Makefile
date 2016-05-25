@@ -12,7 +12,9 @@ SOURCES=src/util.c \
         src/parsetorretnfile.c \
 				src/process_tracker_response.c \
 				src/fileio.c \
-				src/mytorrent.c 
+				src/mytorrent.c \
+	    		src/peer_wire.c \
+	    		src/peers_pool.c
 				
 
 OBJS=src/util.o \
@@ -23,8 +25,10 @@ OBJS=src/util.o \
 		 src/parse_announce_url.o \
      src/parsetorrentfile.o \
 		 src/process_tracker_response.o \
-		 src/fileio.c \
-		 src/mytorrent.o
+		 src/fileio.o \
+		 src/mytorrent.o \
+	 	src/peer_wire.o \
+	 	src/peers_pool.o
 
 all: ${TARGET}
 
