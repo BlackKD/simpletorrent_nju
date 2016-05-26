@@ -203,6 +203,9 @@ int send_handshake(int connfd) {
  * Connect peers actively
  */
 void peer_connect() {
+  if (globalArgs.isseed == 1)
+    return;
+
   tracker_data *data      = globalInfo.g_tracker_response;
   peerdata     *peerarr  = data->peers;
   int           peers_num = data->numpeers;
