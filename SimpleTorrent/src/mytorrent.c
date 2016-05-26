@@ -24,7 +24,7 @@ struct globalInfo_t globalInfo;
 
 void useage()
 {
-	printf("Usage: ./SimpleTorrent [isseed] <torrentpath> n");
+	  printf("Usage: ./SimpleTorrent [isseed] <torrentpath> n");
     printf("\t isseed is optional, 1 indicates this is a seed and won't contact other clients\n");
     printf("\t 0 indicates a downloading client and will connect to other clients and receive connections\n");
     exit(-1);
@@ -182,13 +182,12 @@ int main ( int argc, char *argv[] )
         }
 #endif
 
-    for (i = 0; i < globalInfo.g_tracker_response->numpeers; i++)
-    {
-    	//主动去链接需要的peer
-    	//所需的信息的都在
-    	//globalInfo.g_tracker_response->peers[i].ip, globalInfo.g_tracker_response->peers[i].port
-    }
-  		printf("sleep %d seconds\n", globalInfo.g_tracker_response->interval);
-        sleep(globalInfo.g_tracker_response->interval);
+    //主动去链接需要的peer
+    //所需的信息的都在
+    //globalInfo.g_tracker_response->peers[i].ip, globalInfo.g_tracker_response->peers[i].port
+    peer_connect();
+
+  	printf("sleep %d seconds\n", globalInfo.g_tracker_response->interval);
+    sleep(globalInfo.g_tracker_response->interval);
   }
 }

@@ -59,7 +59,7 @@ peer_t *pool_add_peer(int connfd, char peer_id[20]) {
 }
 
 /*
- * Find the peer whose peer_id == peer_id
+ * Find the peer in the pool, whose peer_id == peer_id
  * On success, a pointer to the peerpool_node_t is returned
  * On failure, NULL is returned
  */
@@ -75,7 +75,21 @@ peerpool_node_t *find_peernode(char peer_id[20]) {
 	return NULL;
 }
 
+/*
+ * Find the peer in the tracker response, whose peer_id == peer_Id 
+ * On success, a pointer to the peerdata is returned
+ * On failure, NULL is returned
+ */
 peerdata *find_peer_from_tracker(char peer_id[20]) {
+	tracker_data *data      = globalInfo.g_tracker_response;
+	peerdata     *peerlist  = data->peers;
+	int           peers_num = data->numpeers;
+
+	for (int i = 0; i < peers_num; i++) {
+		if (strncmp(peer_id, peerlist[i].id, 20) == 0)
+			return &(peerlist[i]);
+	}
+
 	return NULL;
 }
 

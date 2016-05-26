@@ -22,6 +22,7 @@ typedef struct message_handler_arg_ message_handler_arg;
 
 
 int peer_accept(int connfd);
+void peer_connect();
 void *wait_first_handshake(void *arg);
 void *wait_second_handshake(void *arg);
 int handshake_handler(handshake_seg * seg, int flag, int connfd);

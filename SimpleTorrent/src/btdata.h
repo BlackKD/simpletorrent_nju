@@ -58,8 +58,8 @@ typedef struct _peerdata {
 // 包含在tracker响应中的数据
 typedef struct _tracker_data {
     int interval;
-    int numpeers;
-    peerdata* peers;
+    int numpeers;     
+    peerdata* peers;  // pointer to an array, whose length is the value of numpeers
 } tracker_data;
 
 typedef struct _tracker_request {
