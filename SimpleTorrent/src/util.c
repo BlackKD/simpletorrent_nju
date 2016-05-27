@@ -8,6 +8,19 @@
 
 #include "util.h"
 
+int get_addr_by_socket(int sockfd, struct sockaddr_in *addr) {
+    int len = sizeof(struct sockaddr_in);
+    memset(addr, 0, sizeof(struct sockaddr_in));
+
+
+    if (getpeername(sockfd, (struct sockaddr*)addr, &len) != 0) {
+        printf("getppername failed\n");
+        return -1;
+    }
+
+    return 1;
+}
+
 int connect_to_host(char* ip, int port)
 {
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -84,15 +97,15 @@ int recvline(int fd, char **line)
   int retVal;
   int lineIndex = 0;
   int lineSize  = 128;
-  
+
   *line = (char *)malloc(sizeof(char) * lineSize);
-  
+
   if (*line == NULL)
   {
     perror("malloc");
     return -1;
   }
-  
+
   while ((retVal = read(fd, *line + lineIndex, 1)) == 1)
   {
     if ('\n' == (*line)[lineIndex])
@@ -100,9 +113,9 @@ int recvline(int fd, char **line)
       (*line)[lineIndex] = 0;
       break;
     }
-    
+
     lineIndex += 1;
-    
+
     /*
       如果获得的字符太多, 就重新分配行缓存.
     */
@@ -110,17 +123,17 @@ int recvline(int fd, char **line)
     {
       lineSize *= 2;
       char *newLine = realloc(*line, sizeof(char) * lineSize);
-      
+
       if (newLine == NULL)
       {
         retVal    = -1; /* realloc失败 */
         break;
       }
-      
+
       *line = newLine;
     }
   }
-  
+
   if (retVal < 0)
   {
     free(*line);
@@ -145,19 +158,19 @@ int recvlinef(int fd, char *format, ...)
 {
   va_list argv;
   va_start(argv, format);
-  
+
   int retVal = -1;
   char *line;
   int lineSize = recvline(fd, &line);
-  
+
   if (lineSize > 0)
   {
     retVal = vsscanf(line, format, argv);
     free(line);
   }
-  
+
   va_end(argv);
-  
+
   return retVal;
 }
 /* End recvlinef */

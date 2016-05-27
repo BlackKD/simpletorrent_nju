@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -57,5 +56,7 @@ void client_shutdown(int sig);
 
 // 从announce url中提取主机和端口数据
 announce_url_t* parse_announce_url(char* announce);
+
+int get_addr_by_socket(int sockfd, struct sockaddr_in *addr);
 
 #endif

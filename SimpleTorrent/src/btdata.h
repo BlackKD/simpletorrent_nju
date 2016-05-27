@@ -49,7 +49,7 @@ typedef struct _announce_url_t {
 } announce_url_t;
 
 // 由tracker返回的响应中peers键的内容
-#define CONNECTING 1
+#define CONNECT    1
 #define DISCONNECT 0
 typedef struct _peerdata {
     char id[21]; // 20用于null终止符

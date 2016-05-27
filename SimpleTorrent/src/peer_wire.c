@@ -1,4 +1,5 @@
 #include "peer_wire.h"
+#include "util.h"
 #include <stdlib.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -16,13 +17,43 @@
 #include <errno.h>
 
 /*
+ * Check whether we can accept the connection request or not
+ * If we can accept, a pointer to the peer is returned
+ * Else, NULL is returned
+ */
+peerdata *can_accept(int connfd) {
+    struct sockaddr_in peer_addr;
+    if (get_addr_by_socket(connfd, &peer_addr) < 0)
+        return NULL;
+
+    // check if the ip exist in peer list in tracker and
+    // check if the state of the peer is disconnect
+    char peer_ip[INET_ADDRSTRLEN];
+    if (!inet_ntop(AF_INET, peer_ip, (void *)(&(peer_addr.sin_addr)), INET_ADDRSTRLEN)) {
+        printf("can_accept inet_ntop error, %s\n", strerror(errno));
+        return NULL;
+    }
+    peerdata *p = find_peer_from_tracker(peer_ip);
+    if (p != NULL && p->state == DISCONNECT)
+        return p;
+    else
+        return NULL;
+}
+
+/*
  * Accepting a peer:
  * create a message_handler thread to wait the handshake from the peer
- * On erroe, -1 will be returned
+ * On error, -1 will be returned
  * On success, 1 will be returned
  */
 int peer_accept(int connfd) {
-  pthread_t peer_mt;
+    pthread_t peer_mt;
+    peerdata *p = can_accept(connfd);
+    if (p == NULL)
+        return -1;
+    else
+        p -> state = CONNECT;
+
 	if ( pthread_create(&peer_mt, NULL, wait_first_handshake, (void *)connfd) != 0 ) {
         	printf("Error when create wait_first_handshake thread: %s\n", strerror(errno));
         	return -1;
@@ -117,7 +148,7 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
     for (int i = 0; i < 20; i ++) {
       if (seg->sha1_hash[i] != myhash[i]) {
         printf("Invalid hash\n");
-        return NULL;
+        return -1;
       }
     }
 
@@ -211,12 +242,13 @@ void peer_connect() {
   int           peers_num = data->numpeers;
 
   for (int i = 0; i < peers_num; i++) {
-    peerdata p = peerarr[i];
+    peerdata *p = &(peerarr[i]);
 
-    if (strncmp(p.ip, globalInfo.g_my_ip, 16) == 0) continue; // myself
-    if (find_peernode(p.ip) != NULL) continue; // already exist
+    if (strncmp(p->ip, globalInfo.g_my_ip, 16) == 0) continue; // myself
+    if (p->state == CONNECT) continue; // already exist
 
-    printf("connecting peer: %s, %d\n", p.ip, p.port);
+    p->state = CONNECT;
+    printf("connecting peer: %s, %d\n", p->ip, p->port);
     // socket
     int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sockfd < 0) {
@@ -226,8 +258,8 @@ void peer_connect() {
     // connect
     struct sockaddr_in peer_addr;
     peer_addr.sin_family      = AF_INET;
-    peer_addr.sin_port        = htons(p.port);
-    peer_addr.sin_addr.s_addr = inet_addr(p.id);
+    peer_addr.sin_port        = htons(p->port);
+    peer_addr.sin_addr.s_addr = inet_addr(p->ip);
     if (connect(sockfd, (struct sockaddr*)(&peer_addr), sizeof(peer_addr)) < 0) {
       printf("i: %d peer connect error, %s\n", i, strerror(errno));
       continue;
