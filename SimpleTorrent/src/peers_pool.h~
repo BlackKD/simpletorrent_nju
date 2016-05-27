@@ -14,8 +14,8 @@ typedef struct _peerpool_node_t {
 
 extern peerpool_node_t *g_peerpool_head;
 
-peerpool_node_t *find_peernode(char peer_ip[16]);
-peerdata *find_peer_from_tracker(char peer_ip[16]);
-peer_t *pool_add_peer(int connfd, char peer_ip[16]);
+peerpool_node_t *find_peernode(char peer_id[20]);
+peerdata *find_peer_from_tracker(char peer_id[20]);
+peer_t *pool_add_peer(int connfd, char peer_id[20]);
 
 #endif
