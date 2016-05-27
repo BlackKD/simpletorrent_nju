@@ -6,7 +6,7 @@
 #include "btdata.h"
 #include "util.h"
 
-// 读取并处理来自Tracker的HTTP响应, 确认它格式正确, 然后从中提取数据. 
+// 读取并处理来自Tracker的HTTP响应, 确认它格式正确, 然后从中提取数据.
 // 一个Tracker的HTTP响应格式如下所示:
 // HTTP/1.0 200 OK       (17个字节,包括最后的\r\n)
 // Content-Length: X     (到第一个空格为16个字节) 注意: X是一个数字
@@ -40,14 +40,14 @@ int readn(int fd, char *bp, size_t len)
 }
 
 tracker_response* preprocess_tracker_response(int sockfd)
-{ 
+{
     char recvline[MAXLINE];
     char head[MAXLINE];
     int len = -1;
     int offset = 0;
     memset(recvline, 0, MAXLINE);
     printf("Reading tracker response...\n");
-    
+
     // Read HTTP header
     // keep reading until read double \r\n
     while(1 == readn(sockfd, &recvline[offset], 1)){
@@ -134,7 +134,7 @@ tracker_data* get_tracker_data(char* data, int len)
     perror("Data not of type dict");
     exit(-12);
   }
- 
+
   ret = (tracker_data*)malloc(sizeof(tracker_data));
   if(ret == NULL)
   {
@@ -145,7 +145,7 @@ tracker_data* get_tracker_data(char* data, int len)
   // 遍历键并测试它们
   int i;
   for (i=0; ben_res->val.d[i].val != NULL; i++)
-  { 
+  {
     //printf("%s\n",ben_res->val.d[i].key);
     // 检查是否有失败键
     if(!strncmp(ben_res->val.d[i].key,"failure reason",strlen("failure reason")))
@@ -160,12 +160,12 @@ tracker_data* get_tracker_data(char* data, int len)
     }
     // peers键
     if(!strncmp(ben_res->val.d[i].key,"peers",strlen("peers")))
-    { 
+    {
       be_node* peer_list = ben_res->val.d[i].val;
       get_peers(ret,peer_list);
     }
   }
- 
+
   be_free(ben_res);
 
   return ret;
@@ -189,8 +189,8 @@ void get_peers(tracker_data* td, be_node* peer_list)
             td->peers[i].port = (begin[4] << 8) + begin[5];
             memset(td->peers[i].id, 0, sizeof(td->peers[i].id));
         }
-    } 
-     else if (peer_list->type == BE_DICT){ 
+    }
+     else if (peer_list->type == BE_DICT){
         // 计算列表中的peer数
         for (i=0; peer_list->val.l[i] != NULL; i++)
         {
@@ -233,7 +233,7 @@ void get_peers(tracker_data* td, be_node* peer_list)
 void get_peer_data(peerdata* peer, be_node* ben_res)
 {
   int i;
-  
+
   if(ben_res->type != BE_DICT)
   {
     perror("Don't have a dict for this peer");
@@ -242,9 +242,9 @@ void get_peer_data(peerdata* peer, be_node* ben_res)
 
   // 遍历键并填充peerdata结构
   for (i=0; ben_res->val.d[i].val != NULL; i++)
-  { 
+  {
     //printf("%s\n",ben_res->val.d[i].key);
-    
+
     // peer id键
     if(!strncmp(ben_res->val.d[i].key,"peer id",strlen("peer id")))
     {
@@ -263,9 +263,9 @@ void get_peer_data(peerdata* peer, be_node* ben_res)
     if(!strncmp(ben_res->val.d[i].key,"ip",strlen("ip")))
     {
       int len;
-      
+
       len = strlen(ben_res->val.d[i].val->val.s);
-      strcpy(peer->ip,ben_res->val.d[i].val->val.s);    
+      strcpy(peer->ip,ben_res->val.d[i].val->val.s);
       printf("dict Peer ip: %s\n",peer->ip);
     }
     // port键
@@ -275,4 +275,5 @@ void get_peer_data(peerdata* peer, be_node* ben_res)
       peer->port = ben_res->val.d[i].val->val.i;
     }
   }
+  peer->state = DISCONNECT;
 }

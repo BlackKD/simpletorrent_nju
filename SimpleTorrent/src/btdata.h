@@ -49,16 +49,19 @@ typedef struct _announce_url_t {
 } announce_url_t;
 
 // 由tracker返回的响应中peers键的内容
+#define CONNECTING 1
+#define DISCONNECT 0
 typedef struct _peerdata {
     char id[21]; // 20用于null终止符
     int port;
     char ip[16]; // Null终止
+    int state;   // CONNECTING Or DISCONNECT
 } peerdata;
 
 // 包含在tracker响应中的数据
 typedef struct _tracker_data {
     int interval;
-    int numpeers;     
+    int numpeers;
     peerdata* peers;  // pointer to an array, whose length is the value of numpeers
 } tracker_data;
 
@@ -79,6 +82,6 @@ typedef struct _peer_t {
     int am_interested;     // 远端peer对我们的分片有兴趣
     int peer_choking;      // 作为上传者, 我们阻塞远端peer
     int peer_interested;   // 作为下载者, 对远端peer的分片有兴趣
-    char peer_id[20]; 
+    char peer_id[20];
 } peer_t;
 #endif

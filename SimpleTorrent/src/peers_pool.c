@@ -42,7 +42,7 @@ peer_t *pool_add_peer(int connfd, char peer_id[20]) {
 	}
 	else {
 		node->peer = p;
-	} 
+	}
 
 	// insert it
 	if (g_peerpool_head != NULL) {
@@ -63,10 +63,10 @@ peer_t *pool_add_peer(int connfd, char peer_id[20]) {
  * On success, a pointer to the peerpool_node_t is returned
  * On failure, NULL is returned
  */
-peerpool_node_t *find_peernode(char peer_id[20]) {
+peerpool_node_t *find_peernode(char peer_ip[16]) {
 	peerpool_node_t *p = g_peerpool_head;
 	while (p != NULL) {
-		if (strncmp(p->peer->peer_id, peer_id, 20) == 0) {
+		if (strncmp(p->peer->peer_ip, peer_ip, 16) == 0) {
 			return p;
 		}
 		else
@@ -76,17 +76,17 @@ peerpool_node_t *find_peernode(char peer_id[20]) {
 }
 
 /*
- * Find the peer in the tracker response, whose peer_id == peer_Id 
+ * Find the peer in the tracker response, whose peer_id == peer_Id
  * On success, a pointer to the peerdata is returned
  * On failure, NULL is returned
  */
-peerdata *find_peer_from_tracker(char peer_id[20]) {
+peerdata *find_peer_from_tracker(char peer_ip[16]) {
 	tracker_data *data      = globalInfo.g_tracker_response;
 	peerdata     *peerlist  = data->peers;
 	int           peers_num = data->numpeers;
 
 	for (int i = 0; i < peers_num; i++) {
-		if (strncmp(peer_id, peerlist[i].id, 20) == 0)
+		if (strncmp(peer_ip, peerlist[i].ip, 16) == 0)
 			return &(peerlist[i]);
 	}
 

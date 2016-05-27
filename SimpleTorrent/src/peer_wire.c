@@ -3,7 +3,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netinet/in.h> 
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
 #include <pthread.h>
@@ -22,7 +22,7 @@
  * On success, 1 will be returned
  */
 int peer_accept(int connfd) {
-	pthread_t peer_mt;
+  pthread_t peer_mt;
 	if ( pthread_create(&peer_mt, NULL, wait_first_handshake, (void *)connfd) != 0 ) {
         printf("Error when create wait_first_handshake thread: %s\n", strerror(errno));
         return -1;
@@ -32,18 +32,18 @@ int peer_accept(int connfd) {
 
 /*
  * Wait a handshake from the peer, which is the first handshake
- * If received, call handshake_handler(flag = 1) to deal with the handshke 
+ * If received, call handshake_handler(flag = 1) to deal with the handshke
  */
 void *wait_first_handshake(void *arg) {
  	printf("in wait_handshake, ");
  	int connfd = (int)arg;
  	handshake_seg seg;
- 	
+
  	if (recv(connfd, &seg, sizeof(seg), 0) <= 0) {
  		printf("\n");
  		return NULL;
- 	} 
- 	
+ 	}
+
  	// received
  	if (seg.c != 19 || strncmp(seg.str, "BitTorrent protocol", 20) != 0) {
  		printf("invalid handshake\n");
@@ -53,7 +53,7 @@ void *wait_first_handshake(void *arg) {
  	// check hash
  	char *myhash = (char *)(globalInfo.g_torrentmeta->info_hash);
  	for (int i = 0; i < 20; i ++) {
- 		if (seg.sha1_hash[i] != myhash[i]) 
+ 		if (seg.sha1_hash[i] != myhash[i])
  			return NULL;
  	}
 
@@ -70,18 +70,18 @@ void *wait_first_handshake(void *arg) {
 
 /*
  * Wait a handshake from the peer, which is the second handshake(I sent the first)
- * If received, call handshake_handler(flag = 2)to deal with the handshke 
+ * If received, call handshake_handler(flag = 2)to deal with the handshke
  */
 void *wait_second_handshake(void *arg) {
  	printf("in wait_handshake, ");
  	int connfd = (int)arg;
  	handshake_seg seg;
- 	
+
  	if (recv(connfd, &seg, sizeof(seg), 0) <= 0) {
  		printf("\n");
  		return NULL;
- 	} 
- 	
+ 	}
+
  	// received
  	if (seg.c != 19 || strncmp(seg.str, "BitTorrent protocool", 20) != 0) {
  		printf("invalid handshake\n");
@@ -98,11 +98,11 @@ void *wait_second_handshake(void *arg) {
  	}
 
  	return NULL;
-} 
+}
 
 /*
  * Deal with a handshake:
- * Args: 
+ * Args:
  * flag 1 for first handshake, 2 for second handshake
  * Return:
  * On the case that the connection should be closed, 0 is returned
@@ -111,7 +111,7 @@ void *wait_second_handshake(void *arg) {
  */
 int handshake_handler(handshake_seg * seg, int flag, int connfd) {
   	printf("handshake_handler %d\n", flag);
-  	 
+
      // check hash
     char *myhash = (char *)(globalInfo.g_torrentmeta->info_hash);
     for (int i = 0; i < 20; i ++) {
@@ -125,8 +125,8 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
 
   	if (find_peernode(peer_id) != NULL) // already exist the connection
   		return 0;
-  	
-    // check whether the peer id is contained in peer lists in tracker responses 
+
+    // check whether the peer id is contained in peer lists in tracker responses
   	peerdata *p = find_peer_from_tracker(seg->peer_id);
   	if (p == NULL) {
   		printf("Not the right peer, not exists in the tracker response\n");
@@ -137,15 +137,15 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
  		   if (send_handshake(connfd) <= 0)
  			   return -1;
   	}
-  		
+
   	// build connection
-  	peer_t *peerT = pool_add_peer(connfd, peer_id); 
+  	peer_t *peerT = pool_add_peer(connfd, peer_id);
   	if (peerT == NULL) return -1;
 
-  	// create a thread to handle the following messages 
+  	// create a thread to handle the following messages
   	message_handler_arg *arg = (message_handler_arg *)malloc(sizeof(message_handler_arg));
   	arg->peerT    = peerT;
-  	arg->peerData = p; 
+  	arg->peerData = p;
   	pthread_t peer_mt;
 	  if ( pthread_create(&peer_mt, NULL, message_handler, (void *)arg) != 0 ) {
         printf("Error when create message_handler thread: %s\n", strerror(errno));
@@ -173,7 +173,7 @@ void *message_handler(void *arg) {
 /*
  * Send a handshake to the peer
  * On success,  1 is returned
- * On error,   -1 is returned 
+ * On error,   -1 is returned
  */
 int send_handshake(int connfd) {
   	printf("In send_handshake, ");
@@ -212,15 +212,15 @@ void peer_connect() {
 
   for (int i = 0; i < peers_num; i++) {
     peerdata p = peerarr[i];
-    if (find_peernode(p.id) != NULL) continue; // already exist
-    
+    if (find_peernode(p.ip) != NULL) continue; // already exist
+
     printf("connecting peer: %s, %d\n", p.id, p.port);
     // socket
     int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sockfd < 0) {
       printf("i: %d peer socket error, %s\n", i, strerror(errno));
       continue;
-    }  
+    }
     // connect
     struct sockaddr_in peer_addr;
     peer_addr.sin_family      = AF_INET;
