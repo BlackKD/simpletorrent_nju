@@ -18,6 +18,8 @@
 #include "bencode.h"
 #include "peer_wire.h"
 
+extern unsigned long get_local_ip(char *);
+
 struct globalArgs_t globalArgs;
 int listenfd;
 struct globalInfo_t globalInfo;
@@ -63,6 +65,7 @@ int main ( int argc, char *argv[] )
     globalArgs.torrentpath = NULL;
     globalArgs.isseed = atoi(argv[1]);
     globalArgs.torrentpath = argv[2];
+    get_local_ip(globalInfo.g_my_ip);
 
 #ifdef DEBUG
     printf("isseed:%d\n", globalArgs.isseed);
@@ -175,12 +178,12 @@ int main ( int argc, char *argv[] )
     free(tr);
 
 
-#ifdef DEBUG
+//#ifdef DEBUG
         printf("Num Peers: %d\n", globalInfo.g_tracker_response->numpeers);
         for (i = 0; i < globalInfo.g_tracker_response->numpeers; i++){
             printf("Peer ip: %s:%d\n", globalInfo.g_tracker_response->peers[i].ip, globalInfo.g_tracker_response->peers[i].port);
         }
-#endif
+//#endif
 
     //主动去链接需要的peer
     //所需的信息的都在

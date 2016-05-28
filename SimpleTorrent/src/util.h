@@ -58,5 +58,6 @@ void client_shutdown(int sig);
 announce_url_t* parse_announce_url(char* announce);
 
 int get_addr_by_socket(int sockfd, struct sockaddr_in *addr);
+unsigned long get_ip_by_socket(int sockfd, char *ip_buffer);
 
 #endif

@@ -26,6 +26,7 @@ OBJS=src/util.o \
      src/parsetorrentfile.o \
 		 src/process_tracker_response.o \
 		 src/fileio.o \
+		 src/get_local_ip.o \
 		 src/mytorrent.o \
 	 	src/peer_wire.o \
 	 	src/peers_pool.o
@@ -34,6 +35,9 @@ all: ${TARGET}
 
 ${TARGET}: ${OBJS}
 	${CC} ${CFLAGS} -o bin/${TARGET} ${LIBS} ${OBJS}
+
+src/get_local_ip.o: src/get_local_ip.c
+	$(CC) -c src/get_local_ip.c -o src/get_local_ip.o 
 
 %.o: $.c
 	$(CC) -c $(CFLAGS) $@ $<

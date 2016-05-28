@@ -5,16 +5,29 @@
 #include "mytorrent.h"
 #include "peers_pool.h"
 
+#pragma pack(1)
 struct handshake_seg_ {
 	char c;             // should be '\19'
 	char str[20];       // should be "BitTorrent protocol"
-	char reserved[8];   // eight reserved bytes
+	char reserved[7];   // eight reserved bytes
 	char sha1_hash[20]; // 20-byte sha1 hash, the same value which is announced as info_hash to the tracker
 	char peer_id[20];   // 20-byte peer id which is reported in tracker requests and contained in peer lists in tracker responses
 };
 typedef struct handshake_seg_ handshake_seg;
+#pragma
+
+static void handshake_print(handshake_seg *s) {
+	unsigned char *p = (unsigned char *)s;
+	int size = sizeof(handshake_seg);
+	printf("handshake size: %d, content: ", s->c, size);
+	for (int i = 0; i < size; i ++) {
+		printf("%1x ", p[i]); 
+	}
+	printf("\n");
+}
 
 struct message_handler_arg_ {
+	int connfd;
 	peer_t *peerT;
 	peerdata *peerData;
 };

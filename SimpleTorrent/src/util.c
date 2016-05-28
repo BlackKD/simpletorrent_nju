@@ -5,6 +5,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 #include "util.h"
 
@@ -19,6 +22,21 @@ int get_addr_by_socket(int sockfd, struct sockaddr_in *addr) {
     }
 
     return 1;
+}
+
+/* On error, 0 is returned */
+unsigned long get_ip_by_socket(int sockfd, char *ip_buffer) {
+	struct sockaddr_in peer_addr;
+	if (get_addr_by_socket(sockfd, &peer_addr) < 0) {
+		printf("get_addr_by_socket error. %s\n", strerror(errno));
+		return 0;
+	}
+	if (!inet_ntop(AF_INET, (void *)(&(peer_addr.sin_addr)), ip_buffer, INET_ADDRSTRLEN)) {
+		printf("inet_ntop in get_ip_by_socket error. %s\n", strerror(errno));
+		return 0;
+	}
+	printf("peer_ip in socket: %s\n", ip_buffer);
+	return peer_addr.sin_addr.s_addr;
 }
 
 int connect_to_host(char* ip, int port)
