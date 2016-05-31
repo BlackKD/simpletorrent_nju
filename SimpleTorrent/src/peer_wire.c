@@ -34,7 +34,7 @@ int get_bit_at_index(char *bitfield, int index, int bflen) {
 
 	int i   =  7 - index % 8;
 	int bit =  (bitfield[byte] & (1 << i)) == 0 ? 0 : 1;
-	printf("get_bit_at_index: index:%d, i:%d, bitfield[%d]:%d, bit:%d\n", index, i, byte, bit);
+	printf("get_bit_at_index: index:%d, i:%d, bitfield[%d]:%d, bit:%d\n", index, i, byte, bitfield[byte], bit);
 	return bit;
 }
 
@@ -282,6 +282,7 @@ int send_handshake(int connfd) {
  * On error,  -1 is returned
  */
 int send_keepalive(int connfd) {
+	printf("send_keepalive\n");
 	int len = 0;
 	if (Send(connfd, (char *)&len, 4) < 0) {
 		return -1;
@@ -295,6 +296,7 @@ int send_keepalive(int connfd) {
  * On error,  -1 is returned
  */
 int send_choke(int connfd, peer_t *p) {
+	printf("send_choke\n");
 	char buffer[5];
 	int  *len = (int *)buffer;
 	
@@ -316,6 +318,7 @@ int send_choke(int connfd, peer_t *p) {
  * On error,  -1 is returned
  */
 int send_unchoke(int connfd, peer_t *p) {
+	printf("send_Unchoke\n");
 	char buffer[5];
 	int  *len = (int *)buffer;
 	
@@ -338,6 +341,7 @@ int send_unchoke(int connfd, peer_t *p) {
  * On error,  -1 is returned
  */
 int send_interested(int connfd, peer_t *p) {
+	printf("send_interested\n");
 	char buffer[5];
 	int  *len = (int *)buffer;
 	
@@ -359,6 +363,7 @@ int send_interested(int connfd, peer_t *p) {
  * On error,  -1 is returned
  */
 int send_notinterested(int connfd, peer_t *p) {
+	printf("send_notinterested\n");
 	char buffer[5];
 	int  *len = (int *)buffer;
 	
@@ -380,6 +385,7 @@ int send_notinterested(int connfd, peer_t *p) {
  * On error,  -1 is returned
  */
 int send_have(int piece_index) {
+	printf("send_have\n");
 	char buffer[9];
 	int *len = (int *)buffer;
 	int *ind = (int *)(&(buffer[5]));
