@@ -709,7 +709,7 @@ void *message_handler(void *arg) {
 
   int len;
   while (Recv(connfd, &len, sizeof(int)) > 0) {
-	  printf("received len: %x, reversed: %x\n", len, reverse_byte_orderi(len));
+	  printf("received len: %x, reversed: %x connfd:%d\n", len, reverse_byte_orderi(len),connfd);
 	  len = reverse_byte_orderi(len);
 	  if (len > 0) {
 		  char id;
@@ -731,6 +731,11 @@ void *message_handler(void *arg) {
 					     }
 					     index = reverse_byte_orderi(index);
 					     handle_have(connfd, peerT, index);
+					     char tmp;
+					     if (Recv(connfd, &tmp, 1) > 0) { 
+						     printf("RECV tmp\n");
+					     }
+					     
 					     break;
 				     }
 		          case BITFIELD: {
