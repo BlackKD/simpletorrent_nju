@@ -142,7 +142,6 @@ void peer_connect() {
     if (strncmp(p->ip, globalInfo.g_my_ip, 16) == 0) continue; // myself
     if (p->state == CONNECT) continue; // already exist
 
-    p->state = CONNECT;
     printf("connecting peer: %s, %d\n", p->ip, p->port);
     // socket
     int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -164,6 +163,8 @@ void peer_connect() {
       close(sockfd);
       continue;
     }
+
+    p->state = CONNECT;
     pthread_t *peer_mt = (pthread_t *)malloc(sizeof(pthread_t));
     if ( pthread_create(peer_mt, NULL, &wait_second_handshake, (void *)sockfd) != 0 ) {
         printf("Error when create wait_first_handshake thread: %s\n", strerror(errno));
