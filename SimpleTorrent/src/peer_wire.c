@@ -662,7 +662,7 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 
 static inline void handle_request(int connfd, peer_t *p, int index, int begin, int length) {	
 	printf("handle_request, index:%d, begin:%d, length:%d \n", index, begin, length);
-	if (p->peer_choking != 1)
+	if (p->peer_choking == 1)
 		send_piece(connfd, index, begin, length);
 	else 
 		printf("This peer is choking %s\n", p->peer_ip);
