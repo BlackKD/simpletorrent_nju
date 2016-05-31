@@ -277,3 +277,28 @@ void get_peer_data(peerdata* peer, be_node* ben_res)
   }
   peer->state = DISCONNECT;
 }
+
+extern int get_bit_at_index(char *, int, int);
+int *init_pieces_state_arr() {
+	if (globalInfo.pieces_state_arr != NULL) return NULL;
+
+	int pieces_num = globalInfo.g_torrentmeta->num_pieces;
+	int *arr = (int *)malloc(pieces_num * sizeof(int));
+	globalInfo.bitfield = gen_bitfield(globalInfo.g_torrentmeta->pieces,
+			globalInfo.g_torrentmeta->piece_len,
+			globalInfo.g_torrentmeta->num_pieces);
+
+	printf("init bitfield:\n");
+	for(int i = 0; i < pieces_num/8 + 1; i++) {
+		printf("%x ", (unsigned)globalInfo.bitfield[i]);
+	}
+	printf("\n");
+	for (int i = 0; i < pieces_num; i ++) {
+		int biti = get_bit_at_index(globalInfo.bitfield, i, pieces_num/8 + 1);
+		if (biti == 1) arr[i] = PIECE_COMPLETED;
+		else           arr[i] = PIECE_HAVNT; 
+	}
+
+	globalInfo.pieces_state_arr = arr;
+	return arr;
+}

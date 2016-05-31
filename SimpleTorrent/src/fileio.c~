@@ -124,6 +124,7 @@ char *gen_bitfield(char *piece_hash, int piece_len, int piece_num){
     int i;
     for (i = 0; i < piece_num; i++){
         int blocksize = (i != piece_num - 1)?piece_len:(cursize - (piece_num - 1) * piece_len);
+	printf("gen_bitfield,cursize%d, piece_num%d, piece_len%d, block_size:%d\n",cursize, piece_num, piece_len, blocksize); 
         list_get_piece(&globalInfo.g_torrentmeta->flist, hashbuf, blocksize, piece_len * i);
         SHA1Context sha;
         SHA1Reset(&sha);
@@ -148,11 +149,11 @@ char *gen_bitfield(char *piece_hash, int piece_len, int piece_num){
         printf("\n\n");
 #endif
         if (memcmp(sha.Message_Digest, ptr->hash, 20) == 0){
-            //printf("write 1\n");
+            // printf("write 1\n");
             globalInfo.g_downloaded += globalInfo.g_torrentmeta->piece_len;
             set_bit_at_index(bitfield, i, 1);
         } else {
-            //printf("write 0\n");
+            // printf("write 0\n");
             set_bit_at_index(bitfield, i, 0);
         }
         ptr++;

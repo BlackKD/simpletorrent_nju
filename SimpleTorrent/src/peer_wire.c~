@@ -17,6 +17,27 @@
 #include <errno.h>
 
 /*
+ * Return the index bit in bitfield 
+ * bflen is the length of bitfield(bytes)
+ */
+int get_bit_at_index(char *bitfield, int index, int bflen) {
+	if (index < 0) {
+		printf("get_bit_at_index, index < 0 =%d\n", index);
+		return -1;
+	}
+
+	int byte = index / 8;
+	if (byte >= bflen) {
+		printf("In gen_bit_at_index, byte too big %d > %d\n", byte, bflen); 
+		return -1;
+	}
+
+	int i   =  index % 8;
+	int bit =  (bitfield[byte] & (1 << i)) == 0 ? 0 : 1;
+	return bit;
+}
+
+/*
  * Check whether we can accept the connection request or not
  * If we can accept and the peer exist, a pointer to the peer is returned
  * Else, NULL is returned
@@ -38,6 +59,34 @@ peerdata *can_accept(int connfd) {
         return NULL;
     }
 }
+
+/*
+ * Wrapped Send
+ * On error,   return -1
+ * On success, return 1
+ */
+int Send(int sockfd, void *buffer, int buflen) {
+	if (send(sockfd, buffer, buflen, 0) < 0) {
+		printf("send failed %s\n", strerror(errno));
+		return -1;
+	}
+	return 1;
+}
+
+/*
+ * Wrapped Recv
+ * On error,  return -1
+ * On success,return  1
+ */
+int Recv(int sockfd, void *buffer, int buflen) {
+	if (recv(sockfd, buffer, buflen, 0) < 0) {
+		printf("recv failed %s\n", strerror(errno));
+		return -1;
+	}
+	return 1;
+}
+
+//===============================================Codes following for peer wire protocol ==========================================================
 
 /*
  * Accepting a peer:
@@ -73,6 +122,53 @@ int peer_accept(int connfd) {
     
     printf("accepted this peer\n");
     return 1;
+}
+
+/*
+ * Connect peers actively
+ */
+void peer_connect() {
+	printf("enter peer_connect\n");
+	//if (globalArgs.isseed == 1) return;
+
+  tracker_data *data      = globalInfo.g_tracker_response;
+  peerdata     *peerarr   = data->peers;
+  int           peers_num = data->numpeers;
+
+  for (int i = 0; i < peers_num; i++) {
+    peerdata *p = &(peerarr[i]);
+
+    if (strncmp(p->ip, globalInfo.g_my_ip, 16) == 0) continue; // myself
+    if (p->state == CONNECT) continue; // already exist
+
+    p->state = CONNECT;
+    printf("connecting peer: %s, %d\n", p->ip, p->port);
+    // socket
+    int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sockfd < 0) {
+      printf("i: %d peer socket error, %s\n", i, strerror(errno));
+      continue;
+    }
+    // connect
+    struct sockaddr_in peer_addr;
+    peer_addr.sin_family      = AF_INET;
+    peer_addr.sin_port        = htons(p->port);
+    peer_addr.sin_addr.s_addr = inet_addr(p->ip);
+    if (connect(sockfd, (struct sockaddr*)(&peer_addr), sizeof(peer_addr)) < 0) {
+      printf("i: %d peer connect error, %s\n", i, strerror(errno));
+      continue;
+    }
+    // connect successfully, now send the first handshake and create wait the second handshake thread
+    if (send_handshake(sockfd) < 0) {
+      close(sockfd);
+      continue;
+    }
+    pthread_t *peer_mt = (pthread_t *)malloc(sizeof(pthread_t));
+    if ( pthread_create(peer_mt, NULL, &wait_second_handshake, (void *)sockfd) != 0 ) {
+        printf("Error when create wait_first_handshake thread: %s\n", strerror(errno));
+	free(peer_mt);
+    }
+  }// end for each peer
 }
 
 /*
@@ -143,6 +239,275 @@ void *wait_second_handshake(void *arg) {
  	return NULL;
 }
 
+
+/*
+ * Send a handshake to the peer
+ * On success,  1 is returned
+ * On error,   -1 is returned
+ */
+int send_handshake(int connfd) {
+  	printf("In send_handshake\n");
+
+  	handshake_seg seg;
+	memset(&seg, 0, sizeof(seg));
+  	seg.c = 19;
+  	strncpy(seg.str, "BitTorrent protocol", 20);
+
+  	int *myhash  = globalInfo.g_torrentmeta->info_hash;
+	int *seghash = (int *)seg.sha1_hash;
+  	char *myid   = globalInfo.g_my_id;
+	for (int i = 0; i < 5; i ++) {
+		seghash[i] = reverse_byte_orderi(myhash[i]);
+	}
+	for (int i = 0; i < 20; i ++) {
+		seg.peer_id[i]   = myid[i];
+ 	}
+
+    // send it
+	handshake_print(&seg);
+	if (Send(connfd, (void *)(&seg), sizeof(seg)) <= 0) {
+		printf("send handshake error: %s\n", strerror(errno));
+		return -1;
+ 	}
+
+	printf("send_handshake successfully\n");
+  	return 1;
+}
+
+/*
+ * Send a keep_alive to the peer
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_keepalive(int connfd) {
+	int len = 0;
+	if (Send(connfd, (char *)&len, 4) < 0) {
+		return -1;
+	}
+	return 1;
+}
+
+/*
+ * Send a choke to the peer
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_choke(int connfd, peer_t *p) {
+	char buffer[5];
+	int  *len = (int *)buffer;
+	
+	*len      = 0x1000; // reversed the order
+	buffer[4] = CHOKE;  // id
+
+	if (Send(connfd, buffer, 5) < 0) {
+		printf("send_choke error\n");
+		return -1;
+	}
+
+	p->peer_choking = 1;
+	return 1;
+}
+
+/*
+ * Send a unchoke to the peer
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_unchoke(int connfd, peer_t *p) {
+	char buffer[5];
+	int  *len = (int *)buffer;
+	
+	*len      = 0x1000; // reversed the order
+	buffer[4] = UNCHOKE;
+
+	if (Send(connfd, buffer, 5) < 0) {
+		printf("send_unchoke error\n");
+		return -1;
+	}
+
+	p->peer_choking = 0;
+	return 1;
+
+}
+
+/* 
+ * Send an interested to the peer
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_interested(int connfd, peer_t *p) {
+	char buffer[5];
+	int  *len = (int *)buffer;
+	
+	*len      = 0x1000; // reversed the order
+	buffer[4] = INTERESTED;
+
+	if (Send(connfd, buffer, 5) < 0) {
+		printf("send_interested error\n");
+		return -1;
+	}
+
+	p->peer_interested = 1;
+	return 1;
+}
+
+/*
+ * Send an not_interested to the peer
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_notinterested(int connfd, peer_t *p) {
+	char buffer[5];
+	int  *len = (int *)buffer;
+	
+	*len      = 0x1000; // reversed the order
+	buffer[4] = NOT_INTERESTED; // id
+
+	if (Send(connfd, buffer, 5) < 0) {
+		printf("send_notinterested error\n");
+		return -1;
+	}
+
+	p->peer_interested = 0;
+	return 1;
+}
+
+/*
+ * Send a have to all peers
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_have(int piece_index) {
+	char buffer[9];
+	int *len = (int *)buffer;
+	int *ind = (int *)(&(buffer[5]));
+
+	*len = 0x5000;
+	*ind = reverse_byte_orderi(piece_index); // piece index field
+	buffer[4] = HAVE; // id
+	
+	peerpool_node_t *p = g_peerpool_head;
+	while (p != NULL) {
+		int connfd = p->peer->connfd;
+		if (Send(connfd, buffer, 9) < 0) {
+			printf("send_have error.\n");
+		}
+		p = p -> next;
+	}
+
+	return 1;
+}
+
+/*
+ * Send a bitfield to the peer
+ * On success, 1 is returned
+ * On error,   -1 is returned
+ */
+int send_bitfield(int connfd) {
+	int x_len = globalInfo.g_torrentmeta->num_pieces/8 + 1; // bitfield's len
+	char buffer[5];
+	int *len = (int *)buffer;
+	*len = reverse_byte_orderi(x_len + 1);
+	buffer[4] = BITFIELD;
+
+	if (Send(connfd, buffer, 5) < 0) {
+		printf("send_bitfield send buffer error\n");
+		return -1;
+	}
+
+	printf("send_bitfield x_len:%d\n", x_len);
+	globalInfo.bitfield = gen_bitfield(globalInfo.g_torrentmeta->pieces, 
+			globalInfo.g_torrentmeta->piece_len,
+			globalInfo.g_torrentmeta->num_pieces);
+
+	if (Send(connfd, globalInfo.bitfield, x_len) < 0) {
+		printf("send_bitfield send bitfield error\n");
+		return -1;
+	}
+	
+	return 1;
+}
+
+/*
+ * Send a request to the peer
+ * length cannot be bigger than 2^17(bytes)
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_request(int connfd, int index, int begin, int length) {
+	char buffer[17];
+	int *len = (int *)buffer;
+	int *index_ = (int *)(&(buffer[5]));
+	int *begin_ = (int *)(&(buffer[9]));
+	int *length_ = (int *)(&(buffer[13]));
+	*len = reverse_byte_orderi(13);
+	*index_ = reverse_byte_orderi(index);
+	*begin_ = reverse_byte_orderi(begin);
+	*length_ = reverse_byte_orderi(length);
+	buffer[4] = REQUEST;
+
+	if (Send(connfd, buffer, 17) < 0) {
+		printf("send_request error\n");
+		return -1;
+	}
+
+	return 1;
+}
+
+/*
+ * Send a piece to the peer
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_piece(int connfd, int index, int begin, int block_len) {
+	char *buffer = (char *)malloc(block_len + 13);
+	char *block  = &(buffer[13]);
+	int *len = (int *)buffer;
+	int *index_ = (int *)(&(buffer[5]));
+	int *begin_ = (int *)(&(buffer[9]));
+	*len = reverse_byte_orderi(9 + block_len);
+	*index_ = reverse_byte_orderi(index);
+	*begin_ = reverse_byte_orderi(begin);
+	buffer[4] = PIECE;
+
+	get_block(index, begin, block_len, block);
+
+	if (Send(connfd, buffer, block_len + 13) < 0) {
+		printf("send_piece error\n");
+		free(buffer);
+		return -1;
+	}
+
+	free(buffer);
+	return 1;
+}
+
+/*
+ * Send a cancle to the peer
+ * On success, 1 is returned
+ * On error,  -1 is returned
+ */
+int send_cancle(int connfd, int index, int begin, int length) {
+	char buffer[17];
+	int *len = (int *)buffer;
+	int *index_ = (int *)(&(buffer[5]));
+	int *begin_ = (int *)(&(buffer[9]));
+	int *length_ = (int *)(&(buffer[13]));
+	*len = reverse_byte_orderi(13);
+	*index_ = reverse_byte_orderi(index);
+	*begin_ = reverse_byte_orderi(begin);
+	*length_ = reverse_byte_orderi(length);
+	buffer[4] = CANCEL;
+
+	if (Send(connfd, buffer, 17) < 0) {
+		printf("send_request error\n");
+		return -1;
+	}
+
+	return 1;
+
+}
+
 /*
  * Deal with a handshake:
  * Args:
@@ -158,7 +523,7 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
 
      // check hash
     int *myhash  = globalInfo.g_torrentmeta->info_hash;
-    int *seghash = seg->sha1_hash;
+    int *seghash = (int *)seg->sha1_hash;
     for (int i = 0; i < 5; i ++) {
       if (seghash[i] != reverse_byte_orderi(myhash[i])) {
         printf("handshake_handler, Invalid hash\n");
@@ -209,112 +574,242 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
 	return 1;
 }
 
+static inline void handle_keepalive() {
+	// do nothing
+	printf("handle_keepalive\n");
+}
+
+
+static inline void handle_choke(peer_t *p) {
+	printf("handle_choke \n");
+	p->am_choking = 1;
+}
+
+static inline void handle_unchoke(peer_t *p) {
+	printf("handle_unchoke \n");
+	p->am_choking = 0;
+}
+
+static inline void handle_interested(peer_t *p) {
+	printf("handle_interested \n");
+	p->am_interested = 1;
+}
+
+static inline void handle_notinterested(peer_t *p) {
+	printf("handle_nointerested \n");
+	p->am_interested = 0;
+}
+
+static inline void handle_have(int connfd, peer_t *p, int index) {
+	printf("handle_have: \n");
+	/*if (p->peer_choking == 1)  {
+		printf("This peer is choking %s\n", p->peer_ip);
+		return;
+	}*/
+	// send unchoke and interest
+	if (p->peer_choking == 0) 
+		send_unchoke(connfd, p);
+	if (p->peer_interested == 0)
+		send_interested(connfd, p);
+	// send request
+	if (globalInfo.pieces_state_arr[index] == PIECE_HAVNT) {
+		send_request(connfd, index, 0, globalInfo.g_torrentmeta->piece_len);
+		globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
+	}
+	printf("handle_have successfully\n");
+}
+
+static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bitfield_len) { 
+	printf("handle_bitfield:\n");
+	int pieces_num = globalInfo.g_torrentmeta->num_pieces;
+	if (bitfield_len < (pieces_num/8 + 1)) {
+			printf("handle_bitfield, bitfield_len %d < %d, error\n", bitfield_len, pieces_num/8 + 1); 
+			return;
+	}
+	printf("handle_bitfield, bitfield_len:%d, bitfield:", bitfield_len);
+	for (int i = 0; i < bitfield_len; i ++) printf("%x ", (unsigned char)(bitfield[i]));
+	printf("\n");
+
+	/*if (p->peer_choking == 1) {
+		printf("This peer is choking %s\n", p->peer_ip);
+		return;
+	}*/
+	for (int i = 0; i < pieces_num; i++) {
+		printf("piece%d state:%d peer_bit:%d\n",i, globalInfo.pieces_state_arr[i], get_bit_at_index(bitfield, i, bitfield_len);
+		if (globalInfo.pieces_state_arr[i] == PIECE_HAVNT && get_bit_at_index(bitfield, i, bitfield_len) == 1) {
+			// send interset and unchoke
+			if (p -> peer_choking    == 0)
+				send_unchoke(connfd, p);
+			if (p -> peer_interested == 0)
+				send_interested(connfd, p);
+			// send request
+			printf("piece%d, requesting\n");
+			send_request(connfd, i, 0, globalInfo.g_torrentmeta->piece_len);
+		        globalInfo.pieces_state_arr[i] = PIECE_REQUESTING;
+		}
+	}
+	printf("handle_bitfield successfully\n");
+}
+
+static inline void handle_request(int connfd, peer_t *p, int index, int begin, int length) {	
+	printf("handle_request, index:%d, begin:%d, length:%d \n");
+	if (p->peer_choking != 1)
+		send_piece(connfd, index, begin, length);
+	else 
+		printf("This peer is choking %s\n", p->peer_ip);
+	
+
+}
+
+static inline void handle_piece(int connfd, int index, int begin, int block_len, char *block) {
+	printf("handle_piece, index:%d, begin:%d, block_len:%d \n", index, begin, block_len);
+	set_block(index, begin, block_len, block);
+	globalInfo.bitfield = gen_bitfield(globalInfo.g_torrentmeta->pieces, 
+			globalInfo.g_torrentmeta->piece_len, 
+			globalInfo.g_torrentmeta->num_pieces);
+
+	int *piece_state = &(globalInfo.pieces_state_arr[index]);
+	if (get_bit_at_index(globalInfo.bitfield, index, globalInfo.g_torrentmeta->num_pieces/8 + 1) == 1) {
+		*piece_state = PIECE_COMPLETED;
+		send_have(index);
+	}
+}
+
+static inline void handle_cancel(int connfd, int index, int begin, int length) {
+	// sorry??
+}
+
 /*
- * Send bitfield and then
  * handle the messages following handshake
  */
 void *message_handler(void *arg) {
   printf("enter message_handler\n");
+
   message_handler_arg *peerInfo = (message_handler_arg *)arg;
   int connfd = peerInfo->connfd;
-  char buffer;
-  while (recv(connfd, &buffer, 1, 0) > 0) {
-	  printf("recv %1x from %s\n", buffer, peerInfo->peerT->peer_ip);
-  }
+  peer_t *peerT = peerInfo->peerT;
+
+  send_bitfield(connfd);
+
+  int len;
+  while (Recv(connfd, &len, sizeof(int)) > 0) {
+	  printf("received len: %x, reversed: %x\n", len, reverse_byte_orderi(len));
+	  len = reverse_byte_orderi(len);
+	  if (len > 0) {
+		  char id;
+		  if (Recv(connfd, &id, 1) < 0) {
+			  printf("Recv id error\n");
+			  break;
+		  }
+		  printf("received id: %x\n", id);
+		  switch(id) {
+			  case CHOKE: handle_choke(peerT); break;
+		          case UNCHOKE: handle_unchoke(peerT); break;
+			  case INTERESTED: handle_interested(peerT); break;
+			  case NOT_INTERESTED: handle_notinterested(peerT); break;
+		          case HAVE: {
+					     int index;
+					     if (Recv(connfd, &index, 4) < 0) { 
+						     printf("RECV HAVE index error\n");
+						     goto error_disconnect;
+					     }
+					     index = reverse_byte_orderi(index);
+					     handle_have(connfd, peerT, index);
+					     break;
+				     }
+		          case BITFIELD: {
+						 int x_len = len - 1;
+						 char *bitfield = (char *)malloc(x_len);
+						 if (Recv(connfd, bitfield, x_len) < 0) {
+							 printf("Recv BITFIELD bitfield error\n");
+							 goto error_disconnect;
+						 }
+						 handle_bitfield(connfd, peerT, bitfield, x_len);
+						 break;
+					 }
+			  case REQUEST: {
+						int index, begin, length;
+						if (Recv(connfd, &index, 4) < 0) {
+							printf("Recv REQUEST index error\n");
+							goto error_disconnect;
+						}
+						if (Recv(connfd, &begin, 4) < 0) {
+							printf("Recv REQUEST begin error\n");
+							goto error_disconnect;
+						}
+						if (Recv(connfd, &length, 4) < 0) {
+							printf("Recv REQUEST length error\n");
+							goto error_disconnect;
+						}
+						index = reverse_byte_orderi(index);
+						begin = reverse_byte_orderi(begin);
+						length= reverse_byte_orderi(length);
+						handle_request(connfd, peerT, index, begin, length);
+						break;
+					}
+			  case PIECE: {
+					      int block_len = len - 9;
+					      int index, begin;
+					      char *block = (char *)malloc(block_len);
+					      if (Recv(connfd, &index,  4) < 0) {
+						      printf("Recv PIECE index error\n");
+						      goto error_disconnect;
+					      }
+					      if (Recv(connfd, &begin, 4) < 0) {
+						      printf("Recv PIECE begin error\n");
+						      goto error_disconnect;
+					      }
+					      if (Recv(connfd, block, block_len) < 0) {
+						      printf("Recv PIECE block error\n");
+						      goto error_disconnect;
+					      }
+					      index = reverse_byte_orderi(index);
+					      begin = reverse_byte_orderi(begin);
+					      handle_piece(connfd, index, begin, block_len, block);
+					      break;
+				      }
+		           case CANCEL: {
+						int index, begin, length;
+						if (Recv(connfd, &index, 4) < 0) {
+							printf("Recv CANCEL index error\n");
+							goto error_disconnect;
+						}
+						if (Recv(connfd, &begin, 4) < 0) {
+							printf("Recv CANCEL begin error\n");
+							goto error_disconnect;
+						}
+						if (Recv(connfd, &length, 4) < 0) {
+							printf("Recv CANCEL length error\n");
+							goto error_disconnect;
+						}
+						index = reverse_byte_orderi(index);
+						begin = reverse_byte_orderi(begin);
+						length= reverse_byte_orderi(length);
+						handle_cancel(connfd, index, begin, length);
+						break;
+					}
+			   default : {
+					     printf("unkown id: %x\n", id);
+					     break;
+				     }
+		  } // switch
+	  } // len > 0
+	  else 
+		  handle_keepalive();
+  } // end while
 
   // deal with disconnect
+error_disconnect:
   {  
 	  printf("a peer disconnect %s due to %s\n", peerInfo->peerT->peer_ip, strerror(errno));
 	  peerpool_remove_node(peerInfo->peerT);
 	  if (peerInfo->peerData != NULL) {
-		  printf("turn its state to DISCONNECT\n");
+		  printf("peer exist: turn its state to DISCONNECT\n");
 		  peerInfo->peerData->state = DISCONNECT;
 	  }
   }
 
- 	// todo:
-
- 	free(peerInfo);
- 	return NULL;
+  free(peerInfo);
+  return NULL;
 }
 
-/*
- * Send a handshake to the peer
- * On success,  1 is returned
- * On error,   -1 is returned
- */
-int send_handshake(int connfd) {
-  	printf("In send_handshake\n");
-
-  	handshake_seg seg;
-	memset(&seg, 0, sizeof(seg));
-  	seg.c = 19;
-  	strncpy(seg.str, "BitTorrent protocol", 20);
-
-  	int *myhash  = globalInfo.g_torrentmeta->info_hash;
-	int *seghash = (int *)seg.sha1_hash;
-  	char *myid   = globalInfo.g_my_id;
-	for (int i = 0; i < 5; i ++) {
-		seghash[i] = reverse_byte_orderi(myhash[i]);
-	}
-	for (int i = 0; i < 20; i ++) {
-		seg.peer_id[i]   = myid[i];
- 	}
-
-    // send it
-	handshake_print(&seg);
-	if (send(connfd, (void *)(&seg), sizeof(seg), 0) <= 0) {
-		printf("send handshake error: %s\n", strerror(errno));
-		return -1;
- 	}
-
-	printf("send_handshake successfully\n");
-  	return 1;
-}
-
-/*
- * Connect peers actively
- */
-void peer_connect() {
-	printf("enter peer_connect\n");
-	//if (globalArgs.isseed == 1) return;
-
-  tracker_data *data      = globalInfo.g_tracker_response;
-  peerdata     *peerarr   = data->peers;
-  int           peers_num = data->numpeers;
-
-  for (int i = 0; i < peers_num; i++) {
-    peerdata *p = &(peerarr[i]);
-
-    if (strncmp(p->ip, globalInfo.g_my_ip, 16) == 0) continue; // myself
-    if (p->state == CONNECT) continue; // already exist
-
-    p->state = CONNECT;
-    printf("connecting peer: %s, %d\n", p->ip, p->port);
-    // socket
-    int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sockfd < 0) {
-      printf("i: %d peer socket error, %s\n", i, strerror(errno));
-      continue;
-    }
-    // connect
-    struct sockaddr_in peer_addr;
-    peer_addr.sin_family      = AF_INET;
-    peer_addr.sin_port        = htons(p->port);
-    peer_addr.sin_addr.s_addr = inet_addr(p->ip);
-    if (connect(sockfd, (struct sockaddr*)(&peer_addr), sizeof(peer_addr)) < 0) {
-      printf("i: %d peer connect error, %s\n", i, strerror(errno));
-      continue;
-    }
-    // connect successfully, now send the first handshake and create wait the second handshake thread
-    if (send_handshake(sockfd) < 0) {
-      close(sockfd);
-      continue;
-    }
-    pthread_t *peer_mt = (pthread_t *)malloc(sizeof(pthread_t));
-    if ( pthread_create(peer_mt, NULL, &wait_second_handshake, (void *)sockfd) != 0 ) {
-        printf("Error when create wait_first_handshake thread: %s\n", strerror(errno));
-	free(peer_mt);
-    }
-  }// end for each peer
-}

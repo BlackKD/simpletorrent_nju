@@ -1,0 +1,6 @@
+
+Host's address: 114.212.190.185
+
+SHA1:
+5A183FBC 7973D719 60892706 8F755A49 5DFBCF66 
+Error when create socket for binding:Address already in use

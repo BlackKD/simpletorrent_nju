@@ -5,6 +5,18 @@
 #include "mytorrent.h"
 #include "peers_pool.h"
 
+enum message_id {
+	CHOKE         = 0,
+	UNCHOKE       = 1,
+	INTERESTED    = 2,
+	NOT_INTERESTED= 3,
+	HAVE          = 4,
+	BITFIELD      = 5,
+	REQUEST       = 6,
+	PIECE         = 7,
+	CANCEL        = 8
+};
+
 #pragma pack(1)
 struct handshake_seg_ {
 	char c;             // should be '\19'
@@ -27,11 +39,11 @@ static void handshake_print(handshake_seg *s) {
 }
 
 struct message_handler_arg_ {
+	int connfd;
 	peer_t *peerT;
 	peerdata *peerData;
 };
 typedef struct message_handler_arg_ message_handler_arg;
-
 
 int peer_accept(int connfd);
 void peer_connect();

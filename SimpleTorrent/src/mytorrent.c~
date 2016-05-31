@@ -19,6 +19,7 @@
 #include "peer_wire.h"
 
 extern unsigned long get_local_ip(char *);
+extern int *init_pieces_state_arr();
 
 struct globalArgs_t globalArgs;
 int listenfd;
@@ -60,12 +61,13 @@ int main ( int argc, char *argv[] )
 	if(argc<=2)
 		useage();
 
-	globalArgs.port = 8520;
+    globalInfo.pieces_state_arr = NULL;
+    globalArgs.port = 8520;
     globalArgs.isseed = 0;
     globalArgs.torrentpath = NULL;
     globalArgs.isseed = atoi(argv[1]);
     globalArgs.torrentpath = argv[2];
-    get_local_ip(globalArgs.g_my_ip);
+    get_local_ip(globalInfo.g_my_ip);
 
 #ifdef DEBUG
     printf("isseed:%d\n", globalArgs.isseed);
@@ -122,7 +124,7 @@ int main ( int argc, char *argv[] )
     		exit(1);
   		}
 
-  	strcpy(globalInfo.g_tracker_ip, inet_ntoa(*((struct in_addr *)tracker_hostent->h_addr_list[0])));
+    strcpy(globalInfo.g_tracker_ip, inet_ntoa(*((struct in_addr *)tracker_hostent->h_addr_list[0])));
     globalInfo.g_tracker_port = announce_info->port;
     printf("localhost: %s:%d\n", globalInfo.g_tracker_ip, globalInfo.g_tracker_port);
     free(announce_info);
@@ -140,7 +142,9 @@ int main ( int argc, char *argv[] )
   {
   	int sockfd = connect_to_host(globalInfo.g_tracker_ip, globalInfo.g_tracker_port);
   	int request_len = 0;
-    char *request = make_tracker_request(event, &request_len,&globalInfo);
+	printf("before make_request globalInfo.g_torrentmeta %x\n", globalInfo.g_torrentmeta);
+	while(1);
+    char *request = make_tracker_request(event, &request_len, &globalInfo);
     event = -1;
 #ifdef DEBUG
         printf("request to tracker:%s", request);
@@ -176,6 +180,8 @@ int main ( int argc, char *argv[] )
     tmp2 = NULL;
     free(tr->data);
     free(tr);
+
+    init_pieces_state_arr();
 
 
 //#ifdef DEBUG

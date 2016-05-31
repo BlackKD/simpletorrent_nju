@@ -105,8 +105,8 @@ void peerpool_remove_node(peer_t *peerT) {
  */
 peerdata *find_peer_from_tracker(char peer_ip[16]) {
 	tracker_data *data      = globalInfo.g_tracker_response;
-	peerdata     *peerlist  = data->peers;
-	int           peers_num = data->numpeers;
+	peerdata     *peerlist  = globalInfo.g_tracker_response->peers;
+	int           peers_num = globalInfo.g_tracker_response->numpeers;
 
 	printf("find_peer_from_tracker, peers_num:%d, ", peers_num);
 	for (int i = 0; i < peers_num; i++) {

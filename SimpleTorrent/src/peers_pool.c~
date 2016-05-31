@@ -77,7 +77,7 @@ peerpool_node_t *find_peernode(char peer_ip[16]) {
 }
 
 void peerpool_remove_node(peer_t *peerT) {
-	if (node == NULL) return;
+	if (peerT == NULL) return;
 	char *peer_ip = peerT->peer_ip;
 	peerpool_node_t *p        = g_peerpool_head;
 	peerpool_node_t *pre_node = NULL;
