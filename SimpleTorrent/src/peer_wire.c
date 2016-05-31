@@ -474,7 +474,8 @@ int send_request(int connfd, int index, int begin, int length) {
  * On error,  -1 is returned
  */
 int send_piece(int connfd, int index, int begin, int block_len) {
-	char *buffer = (char *)malloc(block_len + 13);
+	//char *buffer = (char *)malloc(block_len + 13);
+	char buffer[block_len + 13];
 	char *block  = &(buffer[13]);
 	int *len = (int *)buffer;
 	int *index_ = (int *)(&(buffer[5]));
