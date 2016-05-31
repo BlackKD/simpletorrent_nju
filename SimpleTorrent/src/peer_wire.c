@@ -67,7 +67,7 @@ peerdata *can_accept(int connfd) {
  * On success, return 1
  */
 int Send(int sockfd, void *buffer, int buflen) {
-	if (send(sockfd, buffer, buflen, 0) < 0) {
+	if (send(sockfd, buffer, buflen, 0) <= 0) {
 		printf("send failed %s\n", strerror(errno));
 		return -1;
 	}
@@ -80,7 +80,7 @@ int Send(int sockfd, void *buffer, int buflen) {
  * On success,return  1
  */
 int Recv(int sockfd, void *buffer, int buflen) {
-	if (recv(sockfd, buffer, buflen, 0) < 0) {
+	if (recv(sockfd, buffer, buflen, 0) <= 0) {
 		printf("recv failed %s\n", strerror(errno));
 		return -1;
 	}
@@ -322,7 +322,7 @@ int send_unchoke(int connfd, peer_t *p) {
 	char buffer[5];
 	int  *len = (int *)buffer;
 	
-	*len      = 0x1000; // reversed the order
+	*len      = reverse_byte_orderi(1); // reversed the order
 	buffer[4] = UNCHOKE;
 
 	if (Send(connfd, buffer, 5) < 0) {
@@ -345,7 +345,7 @@ int send_interested(int connfd, peer_t *p) {
 	char buffer[5];
 	int  *len = (int *)buffer;
 	
-	*len      = 0x1000; // reversed the order
+	*len      = reverse_byte_orderi(1); // reversed the order
 	buffer[4] = INTERESTED;
 
 	if (Send(connfd, buffer, 5) < 0) {
@@ -367,7 +367,7 @@ int send_notinterested(int connfd, peer_t *p) {
 	char buffer[5];
 	int  *len = (int *)buffer;
 	
-	*len      = 0x1000; // reversed the order
+	*len      = reverse_byte_orderi(1); // reversed the order
 	buffer[4] = NOT_INTERESTED; // id
 
 	if (Send(connfd, buffer, 5) < 0) {
@@ -390,7 +390,7 @@ int send_have(int piece_index) {
 	int *len = (int *)buffer;
 	int *ind = (int *)(&(buffer[5]));
 
-	*len = 0x5000;
+	*len = reverse_byte_orderi(5);
 	*ind = reverse_byte_orderi(piece_index); // piece index field
 	buffer[4] = HAVE; // id
 	
