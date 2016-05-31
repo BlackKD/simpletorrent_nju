@@ -62,7 +62,7 @@ int main ( int argc, char *argv[] )
 		useage();
 
     globalInfo.pieces_state_arr = NULL;
-    globalArgs.port = 8520;
+    globalArgs.port = 8530;
     globalArgs.isseed = 0;
     globalArgs.torrentpath = NULL;
     globalArgs.isseed = atoi(argv[1]);
