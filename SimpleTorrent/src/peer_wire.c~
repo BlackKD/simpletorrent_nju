@@ -32,8 +32,9 @@ int get_bit_at_index(char *bitfield, int index, int bflen) {
 		return -1;
 	}
 
-	int i   =  index % 8;
+	int i   =  7 - index % 8;
 	int bit =  (bitfield[byte] & (1 << i)) == 0 ? 0 : 1;
+	printf("get_bit_at_index: index:%d, i:%d, bitfield[%d]:%d, bit:%d\n", index, i, byte, bit);
 	return bit;
 }
 
@@ -404,6 +405,7 @@ int send_have(int piece_index) {
  * On error,   -1 is returned
  */
 int send_bitfield(int connfd) {
+	printf("send_bitfield:\n");
 	int x_len = globalInfo.g_torrentmeta->num_pieces/8 + 1; // bitfield's len
 	char buffer[5];
 	int *len = (int *)buffer;
@@ -420,6 +422,10 @@ int send_bitfield(int connfd) {
 			globalInfo.g_torrentmeta->piece_len,
 			globalInfo.g_torrentmeta->num_pieces);
 
+	printf("bitfield: ");
+	for(int i = 0; i < x_len; i ++) 
+		printf("%x ", globalInfo.bitfield[i]);
+	printf("\n");
 	if (Send(connfd, globalInfo.bitfield, x_len) < 0) {
 		printf("send_bitfield send bitfield error\n");
 		return -1;
@@ -551,8 +557,10 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
   	}*/
 
   	if (flag == 1) {
- 		   if (send_handshake(connfd) <= 0)
+ 		   if (send_handshake(connfd) <= 0) {
+			   printf("handle_handshake send_handshake error\n");
  			   return -1;
+		   }
   	}
 
   	// build connection
@@ -574,9 +582,10 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
 	return 1;
 }
 
-static inline void handle_keepalive() {
+static inline void handle_keepalive(int connfd) {
 	// do nothing
 	printf("handle_keepalive\n");
+	send_keepalive(connfd);
 }
 
 
@@ -635,7 +644,7 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 		return;
 	}*/
 	for (int i = 0; i < pieces_num; i++) {
-		printf("piece%d state:%d peer_bit:%d\n",i, globalInfo.pieces_state_arr[i], get_bit_at_index(bitfield, i, bitfield_len);
+		printf("piece%d state:%d peer_bit:%d\n",i, globalInfo.pieces_state_arr[i], get_bit_at_index(bitfield, i, bitfield_len));
 		if (globalInfo.pieces_state_arr[i] == PIECE_HAVNT && get_bit_at_index(bitfield, i, bitfield_len) == 1) {
 			// send interset and unchoke
 			if (p -> peer_choking    == 0)
@@ -643,7 +652,7 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 			if (p -> peer_interested == 0)
 				send_interested(connfd, p);
 			// send request
-			printf("piece%d, requesting\n");
+			printf("piece%d, requesting\n", i);
 			send_request(connfd, i, 0, globalInfo.g_torrentmeta->piece_len);
 		        globalInfo.pieces_state_arr[i] = PIECE_REQUESTING;
 		}
@@ -652,7 +661,7 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 }
 
 static inline void handle_request(int connfd, peer_t *p, int index, int begin, int length) {	
-	printf("handle_request, index:%d, begin:%d, length:%d \n");
+	printf("handle_request, index:%d, begin:%d, length:%d \n", index, begin, length);
 	if (p->peer_choking != 1)
 		send_piece(connfd, index, begin, length);
 	else 
@@ -697,9 +706,9 @@ void *message_handler(void *arg) {
 	  len = reverse_byte_orderi(len);
 	  if (len > 0) {
 		  char id;
-		  if (Recv(connfd, &id, 1) < 0) {
+		  if (Recv(connfd, &id, 1) <= 0) {
 			  printf("Recv id error\n");
-			  break;
+			  goto error_disconnect;
 		  }
 		  printf("received id: %x\n", id);
 		  switch(id) {
@@ -709,7 +718,7 @@ void *message_handler(void *arg) {
 			  case NOT_INTERESTED: handle_notinterested(peerT); break;
 		          case HAVE: {
 					     int index;
-					     if (Recv(connfd, &index, 4) < 0) { 
+					     if (Recv(connfd, &index, 4) <= 0) { 
 						     printf("RECV HAVE index error\n");
 						     goto error_disconnect;
 					     }
@@ -720,7 +729,7 @@ void *message_handler(void *arg) {
 		          case BITFIELD: {
 						 int x_len = len - 1;
 						 char *bitfield = (char *)malloc(x_len);
-						 if (Recv(connfd, bitfield, x_len) < 0) {
+						 if (Recv(connfd, bitfield, x_len) <= 0) {
 							 printf("Recv BITFIELD bitfield error\n");
 							 goto error_disconnect;
 						 }
@@ -729,15 +738,15 @@ void *message_handler(void *arg) {
 					 }
 			  case REQUEST: {
 						int index, begin, length;
-						if (Recv(connfd, &index, 4) < 0) {
+						if (Recv(connfd, &index, 4) <= 0) {
 							printf("Recv REQUEST index error\n");
 							goto error_disconnect;
 						}
-						if (Recv(connfd, &begin, 4) < 0) {
+						if (Recv(connfd, &begin, 4) <= 0) {
 							printf("Recv REQUEST begin error\n");
 							goto error_disconnect;
 						}
-						if (Recv(connfd, &length, 4) < 0) {
+						if (Recv(connfd, &length, 4) <= 0) {
 							printf("Recv REQUEST length error\n");
 							goto error_disconnect;
 						}
@@ -751,15 +760,15 @@ void *message_handler(void *arg) {
 					      int block_len = len - 9;
 					      int index, begin;
 					      char *block = (char *)malloc(block_len);
-					      if (Recv(connfd, &index,  4) < 0) {
+					      if (Recv(connfd, &index,  4) <= 0) {
 						      printf("Recv PIECE index error\n");
 						      goto error_disconnect;
 					      }
-					      if (Recv(connfd, &begin, 4) < 0) {
+					      if (Recv(connfd, &begin, 4) <= 0) {
 						      printf("Recv PIECE begin error\n");
 						      goto error_disconnect;
 					      }
-					      if (Recv(connfd, block, block_len) < 0) {
+					      if (Recv(connfd, block, block_len) <= 0) {
 						      printf("Recv PIECE block error\n");
 						      goto error_disconnect;
 					      }
@@ -770,15 +779,15 @@ void *message_handler(void *arg) {
 				      }
 		           case CANCEL: {
 						int index, begin, length;
-						if (Recv(connfd, &index, 4) < 0) {
+						if (Recv(connfd, &index, 4) <= 0) {
 							printf("Recv CANCEL index error\n");
 							goto error_disconnect;
 						}
-						if (Recv(connfd, &begin, 4) < 0) {
+						if (Recv(connfd, &begin, 4) <= 0) {
 							printf("Recv CANCEL begin error\n");
 							goto error_disconnect;
 						}
-						if (Recv(connfd, &length, 4) < 0) {
+						if (Recv(connfd, &length, 4) <= 0) {
 							printf("Recv CANCEL length error\n");
 							goto error_disconnect;
 						}
@@ -795,7 +804,7 @@ void *message_handler(void *arg) {
 		  } // switch
 	  } // len > 0
 	  else 
-		  handle_keepalive();
+		  handle_keepalive(connfd);
   } // end while
 
   // deal with disconnect
