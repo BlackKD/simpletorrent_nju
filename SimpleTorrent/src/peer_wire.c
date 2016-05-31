@@ -66,7 +66,7 @@ peerdata *can_accept(int connfd) {
  * On error,   return -1
  * On success, return 1
  */
-int Send(int sockfd, void *buffer, int buflen) {
+int Send(int sockfd, char *buffer, int buflen) {
 	int i = 0;
 	for(i = 0 ; i < buflen;i++)
 	{
@@ -83,7 +83,7 @@ int Send(int sockfd, void *buffer, int buflen) {
  * On error,  return -1
  * On success,return  1
  */
-int Recv(int sockfd, void *buffer, int buflen) {
+int Recv(int sockfd, char *buffer, int buflen) {
 	int i = 0;
 	for(i = 0 ; i < buflen;i++)
 	{
