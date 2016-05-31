@@ -425,7 +425,7 @@ int send_bitfield(int connfd) {
 
 	printf("bitfield: ");
 	for(int i = 0; i < x_len; i ++) 
-		printf("%x ", globalInfo.bitfield[i]);
+		printf("(send_bitfield) %x ", globalInfo.bitfield[i]);
 	printf("\n");
 	if (Send(connfd, globalInfo.bitfield, x_len) < 0) {
 		printf("send_bitfield send bitfield error\n");
@@ -636,9 +636,9 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 			printf("handle_bitfield, bitfield_len %d < %d, error\n", bitfield_len, pieces_num/8 + 1); 
 			return;
 	}
-	printf("handle_bitfield, bitfield_len:%d, bitfield:", bitfield_len);
-	for (int i = 0; i < bitfield_len; i ++) printf("%x ", (unsigned char)(bitfield[i]));
-	printf("\n");
+	//printf("handle_bitfield, bitfield_len:%d, bitfield:", bitfield_len);
+	//for (int i = 0; i < bitfield_len; i ++) printf("%x ", (unsigned char)(bitfield[i]));
+	//printf("\n");
 
 	/*if (p->peer_choking == 1) {
 		printf("This peer is choking %s\n", p->peer_ip);

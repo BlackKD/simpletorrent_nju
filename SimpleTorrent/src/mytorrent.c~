@@ -142,8 +142,6 @@ int main ( int argc, char *argv[] )
   {
   	int sockfd = connect_to_host(globalInfo.g_tracker_ip, globalInfo.g_tracker_port);
   	int request_len = 0;
-	printf("before make_request globalInfo.g_torrentmeta %x\n", globalInfo.g_torrentmeta);
-	while(1);
     char *request = make_tracker_request(event, &request_len, &globalInfo);
     event = -1;
 #ifdef DEBUG
