@@ -70,7 +70,7 @@ int Send(int sockfd, void *buffer, int buflen) {
 	int i = 0;
 	for(i = 0 ; i < buflen;i++)
 	{
-	if (send(sockfd, (char*)buffer+i, 1, 0) <= 0) {
+	if (send(sockfd, buffer+i, 1, 0) <= 0) {
 		printf("send failed %s\n", strerror(errno));
 		return -1;
 	}
@@ -87,7 +87,7 @@ int Recv(int sockfd, void *buffer, int buflen) {
 	int i = 0;
 	for(i = 0 ; i < buflen;i++)
 	{
-	if (recv(sockfd, (char*)buffer+i, 1, 0) <= 0) {
+	if (recv(sockfd, buffer+i, 1, 0) <= 0) {
 		printf("recv failed %s\n", strerror(errno));
 		return -1;
 	}
