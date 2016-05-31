@@ -400,6 +400,7 @@ int send_have(int piece_index) {
 		if (Send(connfd, buffer, 9) < 0) {
 			printf("send_have error.\n");
 		}
+		printf("send a have to : %s\n", p->peer->peer_ip);
 		p = p -> next;
 	}
 
@@ -622,13 +623,12 @@ static inline void handle_have(int connfd, peer_t *p, int index) {
 		printf("This peer is choking %s\n", p->peer_ip);
 		return;
 	}*/
-	// send unchoke and interest
-	if (p->peer_choking == 0) 
-		send_unchoke(connfd, p);
-	if (p->peer_interested == 0)
-		send_interested(connfd, p);
 	// send request
 	if (globalInfo.pieces_state_arr[index] == PIECE_HAVNT) {
+		// send unchoke and interest
+		if (p->peer_choking == 0)       send_unchoke(connfd, p);
+		if (p->peer_interested == 0)	send_interested(connfd, p); 
+
 		send_request(connfd, index, 0, globalInfo.g_torrentmeta->piece_len);
 		globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
 	}

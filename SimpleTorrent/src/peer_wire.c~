@@ -622,13 +622,12 @@ static inline void handle_have(int connfd, peer_t *p, int index) {
 		printf("This peer is choking %s\n", p->peer_ip);
 		return;
 	}*/
-	// send unchoke and interest
-	if (p->peer_choking == 0) 
-		send_unchoke(connfd, p);
-	if (p->peer_interested == 0)
-		send_interested(connfd, p);
 	// send request
 	if (globalInfo.pieces_state_arr[index] == PIECE_HAVNT) {
+		// send unchoke and interest
+		if (p->peer_choking == 0)       send_unchoke(connfd, p);
+		if (p->peer_interested == 0)	send_interested(connfd, p); 
+
 		send_request(connfd, index, 0, globalInfo.g_torrentmeta->piece_len);
 		globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
 	}
@@ -731,10 +730,6 @@ void *message_handler(void *arg) {
 					     }
 					     index = reverse_byte_orderi(index);
 					     handle_have(connfd, peerT, index);
-					     char tmp;
-					     if (Recv(connfd, &tmp, 1) > 0) { 
-						     printf("RECV tmp\n");
-					     }
 					     
 					     break;
 				     }
