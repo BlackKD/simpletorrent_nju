@@ -67,9 +67,13 @@ peerdata *can_accept(int connfd) {
  * On success, return 1
  */
 int Send(int sockfd, void *buffer, int buflen) {
-	if (send(sockfd, buffer, buflen, 0) <= 0) {
+	int i = 0;
+	for(i = 0 ; i < buflen;i++)
+	{
+	if (send(sockfd, (char*)buffer+i, 1, 0) <= 0) {
 		printf("send failed %s\n", strerror(errno));
 		return -1;
+	}
 	}
 	return 1;
 }
@@ -80,9 +84,13 @@ int Send(int sockfd, void *buffer, int buflen) {
  * On success,return  1
  */
 int Recv(int sockfd, void *buffer, int buflen) {
-	if (recv(sockfd, buffer, buflen, 0) <= 0) {
+	int i = 0;
+	for(i = 0 ; i < buflen;i++)
+	{
+	if (recv(sockfd, (char*)buffer+i, 1, 0) <= 0) {
 		printf("recv failed %s\n", strerror(errno));
 		return -1;
+	}
 	}
 	return 1;
 }
@@ -474,8 +482,9 @@ int send_request(int connfd, int index, int begin, int length) {
  * On error,  -1 is returned
  */
 int send_piece(int connfd, int index, int begin, int block_len) {
-	//char *buffer = (char *)malloc(block_len + 13);
-	char buffer[block_len + 13];
+	char *buffer = (char *)malloc(block_len + 13);
+	memset(buffer,0,block_len + 13);
+	//char buffer[block_len + 13];
 	char *block  = &(buffer[13]);
 	int *len = (int *)buffer;
 	int *index_ = (int *)(&(buffer[5]));
