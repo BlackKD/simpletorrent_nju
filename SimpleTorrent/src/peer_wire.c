@@ -486,12 +486,12 @@ int send_piece(int connfd, int index, int begin, int block_len) {
 
 	get_block(index, begin, block_len, block);
 	printf("send_piece,block_len:%d\n",block_len);
-	int j = 0;
+	/*int j = 0;
 	for(j = 0 ; j < block_len + 13;j++)
 	{
 		printf("%d,", buffer[j]);
 	}
-	printf("\n");
+	printf("\n");*/
 	if (Send(connfd, buffer, block_len + 13) < 0) {
 		printf("send_piece error\n");
 		//free(buffer);
@@ -713,7 +713,7 @@ void *message_handler(void *arg) {
   peer_t *peerT = peerInfo->peerT;
 
   send_bitfield(connfd);
-
+  int count = 0;
   int len;
   while (Recv(connfd, &len, sizeof(int)) > 0) {
 	  printf("received len: %x, reversed: %x connfd:%d\n", len, reverse_byte_orderi(len),connfd);
@@ -819,7 +819,12 @@ void *message_handler(void *arg) {
 		  } // switch
 	  } // len > 0
 	  else 
+	  {  count++;
+	  	 printf("count:%d\n", count);
 		  handle_keepalive(connfd);
+		
+		}
+
   } // end while
 
   // deal with disconnect
