@@ -485,14 +485,20 @@ int send_piece(int connfd, int index, int begin, int block_len) {
 	buffer[4] = PIECE;
 
 	get_block(index, begin, block_len, block);
-
+	printf("send_piece,block_len:%d\n",block_len);
+	int j = 0;
+	for(j = 0 ; j < block_len + 13;j++)
+	{
+		printf("%d,", buffer[j]);
+	}
+	printf("\n");
 	if (Send(connfd, buffer, block_len + 13) < 0) {
 		printf("send_piece error\n");
-		free(buffer);
+		//free(buffer);
 		return -1;
 	}
 
-	free(buffer);
+	//free(buffer);
 	return 1;
 }
 
