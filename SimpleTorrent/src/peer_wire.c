@@ -625,6 +625,7 @@ static inline void handle_have(int connfd, peer_t *p, int index) {
 	}*/
 	// send request
 	if (globalInfo.pieces_state_arr[index] == PIECE_HAVNT) {
+		printf ("doesn't have this piece\n");
 		// send unchoke and interest
 		if (p->peer_choking == 0)       send_unchoke(connfd, p);
 		if (p->peer_interested == 0)	send_interested(connfd, p); 
