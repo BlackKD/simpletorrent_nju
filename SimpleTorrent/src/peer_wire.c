@@ -66,7 +66,7 @@ peerdata *can_accept(int connfd) {
  * On error,   return -1
  * On success, return 1
  */
-int Send(int sockfd, char *buffer, int buflen) {
+/*int Send(int sockfd, char *buffer, int buflen) {
 	int i = 0;
 	for(i = 0 ; i < buflen;i++)
 	{
@@ -76,14 +76,61 @@ int Send(int sockfd, char *buffer, int buflen) {
 	}
 	}
 	return 1;
+}*/
+int Recv( int fd, void *bp, size_t len)
+{
+#ifdef DEBUG
+    printf("in readn: read %d char\n", len);
+#endif
+    int cnt;
+    int rc;
+    cnt = len;
+    while ( cnt > 0 ) {
+        rc = recv( fd, bp, cnt, 0 );
+        if ( rc < 0 )               /* read error? */
+        {
+            if ( errno == EINTR )   /* interrupted? */
+                continue;           /* restart the read */
+            return -1;              /* return error */
+        }
+        if ( rc == 0 )              /* EOF? */
+            return len - cnt;       /* return short count */
+        bp += rc;
+        cnt -= rc;
+    }
+    return len;
 }
 
+
+int Send( int fd, void *bp, size_t len)
+{
+#ifdef DEBUG
+    printf("in readn: read %d char\n", len);
+#endif
+    int cnt;
+    int rc;
+    cnt = len;
+    while ( cnt > 0 ) {
+        rc = send( fd, bp, cnt, 0 );
+        if ( rc < 0 )               /* read error? */
+        {
+            if ( errno == EINTR )   /* interrupted? */
+                continue;           /* restart the read */
+            return -1;              /* return error */
+        }
+        if ( rc == 0 )              /* EOF? */
+            return len - cnt;       /* return short count */
+        bp += rc;
+        cnt -= rc;
+    }
+    return len;
+}
 /*
  * Wrapped Recv
  * On error,  return -1
  * On success,return  1
  */
-int Recv(int sockfd, char *buffer, int buflen) {
+/*int Recv(int sockfd, char *buffer, int buflen) {
 	int i = 0;
 	for(i = 0 ; i < buflen;i++)
 	{
@@ -93,7 +140,7 @@ int Recv(int sockfd, char *buffer, int buflen) {
 	}
 	}
 	return 1;
-}
+}*/
 
 //===============================================Codes following for peer wire protocol ==========================================================
 
