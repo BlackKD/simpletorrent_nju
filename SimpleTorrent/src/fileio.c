@@ -51,6 +51,7 @@ int filesize(FILE *fp){
     return size;
 }
 
+
 // check whether file exist
 bool exists(char *filepath){
     if (access(filepath, F_OK) != -1)
@@ -61,10 +62,10 @@ bool exists(char *filepath){
 
 //获取从begin开始的分片len大小的长度 放入buf
 int list_get_piece(struct fileinfo_t *fileinfo, char *buf, int len, int begin){
-    if (fileinfo->begin_index + fileinfo->size < begin + len){
-        printf("write beyond file list\n");
-        return -1;
-    }
+  //  if (fileinfo->begin_index + fileinfo->size < begin + len){
+   //     printf("write beyond file list\n");
+   //     return -1;
+   // }
         if (fileinfo->begin_index <= begin && fileinfo->begin_index + fileinfo->size > begin){
             // write to a file
             if (fileinfo->begin_index + fileinfo->size - begin - len >= 0){
@@ -73,8 +74,10 @@ int list_get_piece(struct fileinfo_t *fileinfo, char *buf, int len, int begin){
             }
             else
             	{
-            		printf("too big in list_get_piece\n");
-            		assert(0);
+                    int newlen = fileinfo->size - (begin - fileinfo->begin_index);
+                    fseek(fileinfo->fp, begin - fileinfo->begin_index, SEEK_SET);
+                    return fread(buf, sizeof(char), newlen, fileinfo->fp);
+            		
             	}
         }
     
@@ -84,10 +87,10 @@ int list_get_piece(struct fileinfo_t *fileinfo, char *buf, int len, int begin){
 
 //将buf写入begin开始的分片len大小的长度
 int list_set_piece(struct fileinfo_t *fileinfo,char *buf, int len, int begin){
-    if (fileinfo->begin_index + fileinfo->size < begin + len){
-        printf("write beyond file list\n");
-        return -1;
-    }
+  //  if (fileinfo->begin_index + fileinfo->size < begin + len){
+   //     printf("write beyond file list\n");
+    //    return -1;
+   // }
         if (fileinfo->begin_index <= begin && fileinfo->begin_index + fileinfo->size > begin){
             // write to a file
             if (fileinfo->begin_index + fileinfo->size - begin - len >= 0){
@@ -96,9 +99,11 @@ int list_set_piece(struct fileinfo_t *fileinfo,char *buf, int len, int begin){
             } 
             else
             	{
-            		printf("too big in list_get_piece\n");
-            		assert(0);
-            	}
+                    int newlen = fileinfo->size - (begin - fileinfo->begin_index);
+                    fseek(fileinfo->fp, begin - fileinfo->begin_index, SEEK_SET);
+                    return fwrite(buf, sizeof(char), newlen, fileinfo->fp);
+                    
+                }
         }
    
     return -1;
