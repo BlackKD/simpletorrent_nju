@@ -692,7 +692,7 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
 static inline void handle_keepalive(int connfd) {
 	// do nothing
 	printf("handle_keepalive\n");
-	//send_keepalive(connfd);
+	send_keepalive(connfd);
 }
 
 
@@ -754,7 +754,7 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 			// send interset and unchoke
 			if (p -> peer_choking    == 1)
 				send_unchoke(connfd, p);
-			if (p -> peer_interested == 1)
+			if (p -> peer_interested == 0)
 				send_interested(connfd, p);
 			// send request
 			printf("piece%d, requesting\n", i);
@@ -796,10 +796,14 @@ static inline void handle_piece(int connfd, int index, int begin, int block_len,
 		*piece_state = PIECE_COMPLETED;
 		send_have(index);
 	}
-	else return;
+	else {
+		UNLOCK_FILE;
+		return;
+	}
 
 	// check whether the whole file completed or not 
-	for (int i = 0; i < bitfield_len; i ++) {
+	for (int i = 0; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
+		printf("check if completed ");
 		if (get_bit_at_index(globalInfo.bitfield, i, bitfield_len) != 1) { 
 			UNLOCK_FILE;
 			return; // file transform is not completed
