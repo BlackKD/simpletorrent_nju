@@ -16,6 +16,21 @@
 #include <string.h>
 #include <errno.h>
 
+pthread_mutex_t  fileMutex          = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t  peer_poolMutex     = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t  pieces_stateMutex  = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_mutex_t *file_mutex         = &fileMutex;
+pthread_mutex_t *peer_pool_mutex    = &peer_poolMutex;
+pthread_mutex_t *pieces_state_mutex = &pieces_stateMutex;
+
+#define LOCK_FILE          pthread_mutex_lock(file_mutex);
+#define LOCK_PEER          pthread_mutex_lock(peer_pool_mutex);
+#define LOCK_PIECE_STATE   pthread_mutex_lock(pieces_state_mutex);
+#define UNLOCK_FILE        pthread_mutex_unlock(file_mutex);
+#define UNLOCK_PEER        pthread_mutex_unlock(peer_pool_mutex);
+#define UNLOCK_PIECE_STATE pthread_mutex_unlock(pieces_state_mutex);
+
 /*
  * Return the index bit in bitfield 
  * bflen is the length of bitfield(bytes)
@@ -142,7 +157,7 @@ int Send( int fd, void *bp, size_t len)
 	return 1;
 }*/
 
-//===============================================Codes following for peer wire protocol ==========================================================
+//=============================================== Codes following for peer wire protocol ==========================================================
 
 /*
  * Accepting a peer:
@@ -160,8 +175,9 @@ int peer_accept(int connfd) {
 	    return -1; 
     }
 
-    peerdata *p = find_peer_from_tracker(peer_ip);
+    LOCK_PEER;
 
+    peerdata *p = find_peer_from_tracker(peer_ip);
     // assume that all the peers connect us is valid
     if (! (p == NULL || (p != NULL && p->state == DISCONNECT))) {
 	    printf("peer %x, peer state: %d ", p, (p==NULL)?-1:p->state);
@@ -176,6 +192,8 @@ int peer_accept(int connfd) {
         return -1;
     }	
     
+    UNLOCK_PEER;
+
     printf("accepted this peer\n");
     return 1;
 }
@@ -184,12 +202,14 @@ int peer_accept(int connfd) {
  * Connect peers actively
  */
 void peer_connect() {
-	printf("enter peer_connect\n");
-	//if (globalArgs.isseed == 1) return;
+  printf("enter peer_connect\n");
+  //if (globalArgs.isseed == 1) return;
 
   tracker_data *data      = globalInfo.g_tracker_response;
   peerdata     *peerarr   = data->peers;
   int           peers_num = data->numpeers;
+
+  LOCK_PEER;
 
   for (int i = 0; i < peers_num; i++) {
     peerdata *p = &(peerarr[i]);
@@ -226,6 +246,8 @@ void peer_connect() {
 	free(peer_mt);
     }
   }// end for each peer
+
+  UNLOCK_PEER;
 }
 
 /*
@@ -468,6 +490,8 @@ int send_have(int piece_index) {
  * On error,   -1 is returned
  */
 int send_bitfield(int connfd) {
+	LOCK_FILE;
+
 	printf("send_bitfield:\n");
 	int x_len = globalInfo.g_torrentmeta->num_pieces/8 + 1; // bitfield's len
 	char buffer[5];
@@ -477,6 +501,7 @@ int send_bitfield(int connfd) {
 
 	if (Send(connfd, buffer, 5) < 0) {
 		printf("send_bitfield send buffer error\n");
+		UNLOCK_FILE;
 		return -1;
 	}
 
@@ -491,9 +516,11 @@ int send_bitfield(int connfd) {
 	printf("\n");
 	if (Send(connfd, globalInfo.bitfield, x_len) < 0) {
 		printf("send_bitfield send bitfield error\n");
+		UNLOCK_FILE;
 		return -1;
 	}
 	
+	UNLOCK_FILE;
 	return 1;
 }
 
@@ -614,10 +641,13 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
 	    return -1;
     }
 
-  	if (find_peernode(peer_ip) != NULL)  {
+    LOCK_PEER; 
+   
+    if (find_peernode(peer_ip) != NULL)  {
 		printf("connection already exist\n");
-		return 0;// already exist the connection
-	}
+		UNLOCK_PEER;
+		return 0;// already exist the connection	
+    }
 
     // check whether the peer id is contained in peer lists in tracker responses
     // But now, we assume that it's one of the peers in the peer list
@@ -627,30 +657,36 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
   		return -1; // not the right peer
   	}*/
 
-  	if (flag == 1) {
- 		   if (send_handshake(connfd) <= 0) {
-			   printf("handle_handshake send_handshake error\n");
- 			   return -1;
-		   }
-  	}
+     if (flag == 1) {
+ 	if (send_handshake(connfd) <= 0) {
+		 printf("handle_handshake send_handshake error\n");
+		 UNLOCK_PEER;
+ 		 return -1;
+	}
+     }
 
-  	// build connection
-  	peer_t *peerT = pool_add_peer(connfd, peer_ip);
-  	if (peerT == NULL) return -1;
+     // build connection
+     peer_t *peerT = pool_add_peer(connfd, peer_ip);
+     if (peerT == NULL) {
+	     UNLOCK_PEER;
+	     return -1;
+     }
 
-  	// create a thread to handle the following messages
-  	message_handler_arg *arg = (message_handler_arg *)malloc(sizeof(message_handler_arg));
-	arg->connfd   = connfd;
-  	arg->peerT    = peerT;
-  	arg->peerData = find_peer_from_tracker(peer_ip);
-  	pthread_t *peer_mt = (pthread_t *)malloc(sizeof(pthread_t));
-	  if ( pthread_create(peer_mt, NULL, message_handler, (void *)arg) != 0 ) {
+     // create a thread to handle the following messages
+     message_handler_arg *arg = (message_handler_arg *)malloc(sizeof(message_handler_arg));
+     arg->connfd   = connfd;
+     arg->peerT    = peerT;
+     arg->peerData = find_peer_from_tracker(peer_ip);
+     pthread_t *peer_mt = (pthread_t *)malloc(sizeof(pthread_t));
+     if ( pthread_create(peer_mt, NULL, message_handler, (void *)arg) != 0 ) {
         printf("Error when create message_handler thread: %s\n", strerror(errno));
+	UNLOCK_PEER;
         return -1;
-	  }
+     }
 
-	printf("build connection with the peer %s successfully\n", peer_ip);
-	return 1;
+     UNLOCK_PEER;
+     printf("build connection with the peer %s successfully\n", peer_ip);
+     return 1;
 }
 
 static inline void handle_keepalive(int connfd) {
@@ -681,11 +717,9 @@ static inline void handle_notinterested(peer_t *p) {
 }
 
 static inline void handle_have(int connfd, peer_t *p, int index) {
+	LOCK_FILE;
+
 	printf("handle_have: \n");
-	/*if (p->peer_choking == 1)  {
-		printf("This peer is choking %s\n", p->peer_ip);
-		return;
-	}*/
 	// send request
 	if (globalInfo.pieces_state_arr[index] == PIECE_HAVNT) {
 		printf ("doesn't have this piece\n");
@@ -697,6 +731,8 @@ static inline void handle_have(int connfd, peer_t *p, int index) {
 		globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
 	}
 	printf("handle_have successfully\n");
+
+	UNLOCK_FILE;
 }
 
 static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bitfield_len) { 
@@ -710,17 +746,15 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 	//for (int i = 0; i < bitfield_len; i ++) printf("%x ", (unsigned char)(bitfield[i]));
 	//printf("\n");
 
-	/*if (p->peer_choking == 1) {
-		printf("This peer is choking %s\n", p->peer_ip);
-		return;
-	}*/
+	LOCK_FILE;
+
 	for (int i = 0; i < pieces_num; i++) {
 		printf("piece%d state:%d peer_bit:%d\n",i, globalInfo.pieces_state_arr[i], get_bit_at_index(bitfield, i, bitfield_len));
 		if (globalInfo.pieces_state_arr[i] == PIECE_HAVNT && get_bit_at_index(bitfield, i, bitfield_len) == 1) {
 			// send interset and unchoke
-			if (p -> peer_choking    == 0)
+			if (p -> peer_choking    == 1)
 				send_unchoke(connfd, p);
-			if (p -> peer_interested == 0)
+			if (p -> peer_interested == 1)
 				send_interested(connfd, p);
 			// send request
 			printf("piece%d, requesting\n", i);
@@ -729,19 +763,25 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 		}
 	}
 	printf("handle_bitfield successfully\n");
+
+	UNLOCK_FILE;
 }
 
 static inline void handle_request(int connfd, peer_t *p, int index, int begin, int length) {	
+	LOCK_FILE;
+
 	printf("handle_request, index:%d, begin:%d, length:%d \n", index, begin, length);
 	if (p->peer_choking == 1)
 		send_piece(connfd, index, begin, length);
 	else 
 		printf("This peer is choking %s\n", p->peer_ip);
 	
-
+        UNLOCK_FILE;
 }
 
 static inline void handle_piece(int connfd, int index, int begin, int block_len, char *block) {
+	LOCK_FILE;
+
 	printf("handle_piece, index:%d, begin:%d, block_len:%d \n", index, begin, block_len);
 	set_block(index, begin, block_len, block);
 	int bitfield_len = globalInfo.g_torrentmeta->num_pieces/8 + 1;
@@ -760,13 +800,16 @@ static inline void handle_piece(int connfd, int index, int begin, int block_len,
 
 	// check whether the whole file completed or not 
 	for (int i = 0; i < bitfield_len; i ++) {
-		if (get_bit_at_index(globalInfo.bitfield, i, bitfield_len) != 1) 
+		if (get_bit_at_index(globalInfo.bitfield, i, bitfield_len) != 1) { 
+			UNLOCK_FILE;
 			return; // file transform is not completed
+		}
 	}
 	// file transform is completed, close the connfd
 	printf("This file is completed\n");
 	close(connfd);
 	
+	UNLOCK_FILE;
 }
 
 static inline void handle_cancel(int connfd, int index, int begin, int length) {
@@ -782,7 +825,6 @@ void *message_handler(void *arg) {
   message_handler_arg *peerInfo = (message_handler_arg *)arg;
   int connfd = peerInfo->connfd;
   peer_t *peerT = peerInfo->peerT;
-
   send_bitfield(connfd);
   int count = 0;
   int len;
@@ -901,12 +943,14 @@ void *message_handler(void *arg) {
   // deal with disconnect
 error_disconnect:
   {  
+	  pthread_mutex_lock(peer_pool_mutex);
 	  printf("a peer disconnect %s due to %s\n", peerInfo->peerT->peer_ip, strerror(errno));
 	  peerpool_remove_node(peerInfo->peerT);
 	  if (peerInfo->peerData != NULL) {
 		  printf("peer exist: turn its state to DISCONNECT\n");
 		  peerInfo->peerData->state = DISCONNECT;
 	  }
+	  pthread_mutex_unlock(peer_pool_mutex);
   }
 
   free(peerInfo);
