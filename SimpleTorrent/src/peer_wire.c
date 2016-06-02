@@ -105,7 +105,7 @@ int Recv( int fd, void *bp, size_t len)
 int Send( int fd, void *bp, size_t len)
 {
 #ifdef DEBUG
-    printf("in readn: read %d char\n", len);
+    printf("in sendn: read %d char\n", len);
 #endif
     int cnt;
     int rc;
@@ -744,15 +744,29 @@ static inline void handle_request(int connfd, peer_t *p, int index, int begin, i
 static inline void handle_piece(int connfd, int index, int begin, int block_len, char *block) {
 	printf("handle_piece, index:%d, begin:%d, block_len:%d \n", index, begin, block_len);
 	set_block(index, begin, block_len, block);
+	int bitfield_len = globalInfo.g_torrentmeta->num_pieces/8 + 1;
+
 	globalInfo.bitfield = gen_bitfield(globalInfo.g_torrentmeta->pieces, 
 			globalInfo.g_torrentmeta->piece_len, 
 			globalInfo.g_torrentmeta->num_pieces);
 
+	// check whether this piece completed or not
 	int *piece_state = &(globalInfo.pieces_state_arr[index]);
-	if (get_bit_at_index(globalInfo.bitfield, index, globalInfo.g_torrentmeta->num_pieces/8 + 1) == 1) {
+	if (get_bit_at_index(globalInfo.bitfield, index, bitfield_len) == 1) {
 		*piece_state = PIECE_COMPLETED;
 		send_have(index);
 	}
+	else return;
+
+	// check whether the whole file completed or not 
+	for (int i = 0; i < bitfield_len; i ++) {
+		if (get_bit_at_index(globalInfo.bitfield, i, bitfield_len) != 1) 
+			return; // file transform is not completed
+	}
+	// file transform is completed, close the connfd
+	printf("This file is completed\n");
+	close(connfd);
+	
 }
 
 static inline void handle_cancel(int connfd, int index, int begin, int length) {
