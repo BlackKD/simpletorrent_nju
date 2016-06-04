@@ -183,6 +183,7 @@ int main ( int argc, char *argv[] )
 
     init_pieces_state_arr();
     init_pieces_num_in_peers();
+    create_request_file_thread();
 
 
 //#ifdef DEBUG

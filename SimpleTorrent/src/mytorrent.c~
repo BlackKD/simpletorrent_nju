@@ -20,7 +20,7 @@
 
 extern unsigned long get_local_ip(char *);
 extern int *init_pieces_state_arr();
-extern int *init_pieces_num_in_peer();
+extern int *init_pieces_num_in_peers();
 
 struct globalArgs_t globalArgs;
 int listenfd;

@@ -445,12 +445,14 @@ int send_have(int piece_index) {
 	
 	peerpool_node_t *p = g_peerpool_head;
 	while (p != NULL) {
-		int connfd = p->peer->connfd;
-		if (Send(connfd, buffer, 9) < 0) {
-			printf("send_have error.\n");
+		if (p->peer->peer_pieces_state[piece_index] != 1) {
+			int connfd = p->peer->connfd;
+			if (Send(connfd, buffer, 9) < 0) {
+				printf("send_have error.\n");
+			}
+			printf("send a have to : %s\n", p->peer->peer_ip);
 		}
-		printf("send a have to : %s\n", p->peer->peer_ip);
-		p = p -> next;
+		p = p->next;
 	}
 
 	return 1;
@@ -600,6 +602,7 @@ void request_a_piece(int connfd, peer_t *p, int index, int length) {
 	int sub_piece_len  = length / sub_pieces_num; //
 	int sub_begin = 0;
 
+	globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
 	send_interested(connfd, p);
 	for (int i = 0; i < sub_pieces_num; i ++) {
 		send_request(connfd, index, sub_begin, sub_piece_len);
@@ -649,12 +652,17 @@ void *request_file(void *arg) {
 				request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
 			}
 		}
+		else 
+			sleep(1); 
 	}
 }
 
 void create_request_file_thread() {
 	static int created;  
-	if (created != 0) return; // ensure this thread to be created only once
+	if (created != 0) {
+		printf("request_file_thread has been created\n");
+		return; // ensure this thread to be created only once
+	}
 
 	pthread_t *pt = (pthread_t *)malloc(sizeof(pthread_t));
 	if (pthread_create(pt, NULL, request_file, NULL) < 0) 
