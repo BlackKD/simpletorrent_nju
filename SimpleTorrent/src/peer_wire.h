@@ -52,5 +52,6 @@ void *wait_second_handshake(void *arg);
 int handshake_handler(handshake_seg * seg, int flag, int connfd);
 void *message_handler(void *arg);
 int send_handshake(int connfd);
+void create_request_file_thread();
 
 #endif

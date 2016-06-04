@@ -26,12 +26,10 @@ pthread_mutex_t *pieces_state_mutex = &pieces_stateMutex;
 
 #define LOCK_FILE          pthread_mutex_lock(file_mutex);
 #define LOCK_PEER          pthread_mutex_lock(peer_pool_mutex);
-#define LOCK_PIECE         pthread_mutex_lock(pieces_state_mutex);
+#define LOCK_PIECE_STATE   pthread_mutex_lock(pieces_state_mutex);
 #define UNLOCK_FILE        pthread_mutex_unlock(file_mutex);
 #define UNLOCK_PEER        pthread_mutex_unlock(peer_pool_mutex);
-#define UNLOCK_PIECE       pthread_mutex_unlock(pieces_state_mutex);
-
-// =================================== Following functions are some simple tools ==================================================================
+#define UNLOCK_PIECE_STATE pthread_mutex_unlock(pieces_state_mutex);
 
 /*
  * Return the index bit in bitfield 
@@ -78,6 +76,22 @@ peerdata *can_accept(int connfd) {
     }
 }
 
+/*
+ * Wrapped Send
+ * On error,   return -1
+ * On success, return 1
+ */
+/*int Send(int sockfd, char *buffer, int buflen) {
+	int i = 0;
+	for(i = 0 ; i < buflen;i++)
+	{
+	if (send(sockfd, buffer+i, 1, 0) <= 0) {
+		printf("send failed %s\n", strerror(errno));
+		return -1;
+	}
+	}
+	return 1;
+}*/
 int Recv( int fd, void *bp, size_t len)
 {
 #ifdef DEBUG
@@ -92,7 +106,6 @@ int Recv( int fd, void *bp, size_t len)
         {
             if ( errno == EINTR )   /* interrupted? */
                 continue;           /* restart the read */
-	    printf("Recv error, %s\n", strerror(errno));
             return -1;              /* return error */
         }
         if ( rc == 0 )              /* EOF? */
@@ -127,8 +140,24 @@ int Send( int fd, void *bp, size_t len)
     }
     return len;
 }
+/*
+ * Wrapped Recv
+ * On error,  return -1
+ * On success,return  1
+ */
+/*int Recv(int sockfd, char *buffer, int buflen) {
+	int i = 0;
+	for(i = 0 ; i < buflen;i++)
+	{
+	if (recv(sockfd, buffer+i, 1, 0) <= 0) {
+		printf("recv failed %s\n", strerror(errno));
+		return -1;
+	}
+	}
+	return 1;
+}*/
 
-//==================== Following functions are to accept peers' connection or connect peers ======================================================
+//=============================================== Codes following for peer wire protocol ==========================================================
 
 /*
  * Accepting a peer:
@@ -289,7 +318,6 @@ void *wait_second_handshake(void *arg) {
  	return NULL;
 }
 
-//======================================== Following functions are to send handshakes or messages ================================================
 
 /*
  * Send a handshake to the peer
@@ -589,83 +617,19 @@ int send_cancle(int connfd, int index, int begin, int length) {
 
 }
 
-//========================================= Following functions are designed for requesting pieces ================================================
-
 /*
- * Seperate a piece request to 4 sub-piece requests
+ * Seperate a piece request to 64 sub-piece requests
  */
-void request_a_piece(int connfd, peer_t *p, int index, int length) {
-	printf("requesting 4 sub-pieces of piece%d\n", index);
-	int sub_pieces_num = 4;
+void request_a_piece(int connfd, int index, int length) {
+	printf("requesting 64 sub-pieces of piece%d\n", index);
+	int sub_pieces_num = 64;
 	int sub_piece_len  = length / sub_pieces_num; //
 	int sub_begin = 0;
-
-	send_interested(connfd, p);
 	for (int i = 0; i < sub_pieces_num; i ++) {
 		send_request(connfd, index, sub_begin, sub_piece_len);
 		sub_begin += sub_piece_len;
 	}
 }
-
-/*
- * Chose a piece to be requested
- * Using Least-First strategy
- * On success, the index of the piece is returned
- * If there is no piece can be requested, -1 is returned
- */
-int which_piece_to_request() {
-	int *my_piece_state = globalInfo.pieces_state_arr;
-	int *arr = globalInfo.pieces_num_in_peers;
-	int min;
-	int min_val;
-	for (min = 0; min < globalInfo.g_torrentmeta->num_pieces; min ++) {
-		if (my_piece_state[min] == PIECE_HAVNT && arr[min] > 0) break;
-	}
-	if (min == globalInfo.g_torrentmeta->num_pieces) {
-		printf("no piece can be requested\n");
-		return -1;
-	}
-
-	min_val = arr[min];
-	for (int i = min; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
-		if (arr[i] < min_val)
-			min = i;
-	}
-	printf("which_piece_to_request: piece index %d\n", min);
-	return min;
-}
-
-/*
- * A thread
- * To request all the pieces
- */
-void *request_file(void *arg) {
-	while (globalArgs.isseed == 0) { 
-		int index = which_piece_to_request();
-		if (index >= 0) {
-			peer_t *p = find_peer_have_piece(index);
-			if (p != NULL) {
-				LOCK_PIECE; // will be unlocked in handle_piece when received the whole piece
-				request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
-			}
-		}
-	}
-}
-
-void create_request_file_thread() {
-	static int created;  
-	if (created != 0) return; // ensure this thread to be created only once
-
-	pthread_t *pt = (pthread_t *)malloc(sizeof(pthread_t));
-	if (pthread_create(pt, NULL, request_file, NULL) < 0) 
-		printf("create_request_file_thread failed, %s\n", strerror(errno));
-	else {
-		printf("create_request_file_thread successfully\n");
-		created = 1;
-	}
-}
-
-//============================= Following functions are to handle the received handshakes or messages ==============================================
 
 /*
  * Deal with a handshake:
@@ -677,10 +641,10 @@ void create_request_file_thread() {
  * On error, -1 is returned
  */
 int handshake_handler(handshake_seg * seg, int flag, int connfd) {
-    printf("handshake_handler %d\n", flag);
-    handshake_print(seg);
+  	printf("handshake_handler %d\n", flag);
+	handshake_print(seg);
 
-    // check hash
+     // check hash
     int *myhash  = globalInfo.g_torrentmeta->info_hash;
     int *seghash = (int *)seg->sha1_hash;
     for (int i = 0; i < 5; i ++) {
@@ -779,12 +743,11 @@ static inline void handle_have(int connfd, peer_t *p, int index) {
 	if (globalInfo.pieces_state_arr[index] == PIECE_HAVNT) {
 		printf ("doesn't have this piece\n");
 		// send unchoke and interest
-		if (p->peer_choking == 1)       send_unchoke(connfd, p);
+		if (p->peer_choking == 0)       send_unchoke(connfd, p);
 		if (p->peer_interested == 0)	send_interested(connfd, p); 
 
-		// request_a_piece(connfd, p, index, globalInfo.g_torrentmeta->piece_len);
-		send_interested(connfd, p);
-		// globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
+		send_request(connfd, index, 0, globalInfo.g_torrentmeta->piece_len);
+		globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
 	}
 	printf("handle_have successfully\n");
 
@@ -803,30 +766,24 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 	//printf("\n");
 
 	LOCK_FILE;
+
 	for (int i = 0; i < pieces_num; i++) {
 		printf("piece%d state:%d peer_bit:%d\n",i, globalInfo.pieces_state_arr[i], get_bit_at_index(bitfield, i, bitfield_len));
-
-		int piece_state = globalInfo.pieces_state_arr[i];
-		int peer_bit = get_bit_at_index(bitfield, i, bitfield_len);
-
-		if (peer_bit == 1) {
-			peer_have_piece(p, i);
-		}
-		else continue;
-
-		if (piece_state == PIECE_HAVNT) {
+		if (globalInfo.pieces_state_arr[i] == PIECE_HAVNT && get_bit_at_index(bitfield, i, bitfield_len) == 1) {
 			// send interset and unchoke
 			if (p -> peer_choking    == 1)
 				send_unchoke(connfd, p);
 			if (p -> peer_interested == 0)
 				send_interested(connfd, p);
-			// request_a_piece(connfd, p, i, globalInfo.g_torrentmeta->piece_len);
-		        // globalInfo.pieces_state_arr[i] = PIECE_REQUESTING;
+			// send request
+			printf("piece%d, requesting\n", i);
+			send_request(connfd, i, 0, globalInfo.g_torrentmeta->piece_len);
+		        globalInfo.pieces_state_arr[i] = PIECE_REQUESTING;
 		}
 	}
+	printf("handle_bitfield successfully\n");
 
 	UNLOCK_FILE;
-	printf("handle_bitfield successfully\n");
 }
 
 static inline void handle_request(int connfd, peer_t *p, int index, int begin, int length) {	
@@ -843,6 +800,7 @@ static inline void handle_request(int connfd, peer_t *p, int index, int begin, i
 
 static inline void handle_piece(int connfd, int index, int begin, int block_len, char *block) {
 	LOCK_FILE;
+
 	printf("handle_piece, index:%d, begin:%d, block_len:%d \n", index, begin, block_len);
 	set_block(index, begin, block_len, block);
 	int bitfield_len = globalInfo.g_torrentmeta->num_pieces/8 + 1;
@@ -854,10 +812,8 @@ static inline void handle_piece(int connfd, int index, int begin, int block_len,
 	// check whether this piece completed or not
 	int *piece_state = &(globalInfo.pieces_state_arr[index]);
 	if (get_bit_at_index(globalInfo.bitfield, index, bitfield_len) == 1) {
-		// the whole piece is compelted
 		*piece_state = PIECE_COMPLETED;
 		send_have(index);
-		UNLOCK_PIECE;
 	}
 	else {
 		UNLOCK_FILE;
@@ -866,7 +822,7 @@ static inline void handle_piece(int connfd, int index, int begin, int block_len,
 
 	// check whether the whole file completed or not 
 	for (int i = 0; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
-		printf("check file if completed ");
+		printf("check if completed ");
 		if (get_bit_at_index(globalInfo.bitfield, i, bitfield_len) != 1) { 
 			UNLOCK_FILE;
 			return; // file transform is not completed
@@ -874,7 +830,6 @@ static inline void handle_piece(int connfd, int index, int begin, int block_len,
 	}
 	// file transform is completed, close the connfd
 	printf("This file is completed\n");
-	globalArgs.isseed = 1;
 	close(connfd);
 	
 	UNLOCK_FILE;

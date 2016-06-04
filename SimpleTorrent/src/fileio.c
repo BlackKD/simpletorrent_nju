@@ -212,9 +212,9 @@ int get_any_piece(FILE *fp, char *buf, int begin, int len, int piece_num, int pi
 }
 
 
-void get_block(int index, int begin, int length, char *block){
-    list_get_piece(&globalInfo.g_torrentmeta->flist,  block, length, index * globalInfo.g_torrentmeta->piece_len + begin);
+int get_block(int index, int begin, int length, char *block){
+    return list_get_piece(&globalInfo.g_torrentmeta->flist,  block, length, index * globalInfo.g_torrentmeta->piece_len + begin);
 }
-void set_block(int index, int begin, int length, char *block){
-    list_set_piece(&globalInfo.g_torrentmeta->flist,  block, length, index * globalInfo.g_torrentmeta->piece_len + begin);
+int set_block(int index, int begin, int length, char *block){
+    return list_set_piece(&globalInfo.g_torrentmeta->flist,  block, length, index * globalInfo.g_torrentmeta->piece_len + begin);
 }

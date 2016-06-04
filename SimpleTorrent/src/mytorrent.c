@@ -20,6 +20,7 @@
 
 extern unsigned long get_local_ip(char *);
 extern int *init_pieces_state_arr();
+extern int *init_pieces_num_in_peers();
 
 struct globalArgs_t globalArgs;
 int listenfd;
@@ -27,7 +28,7 @@ struct globalInfo_t globalInfo;
 
 void useage()
 {
-	  printf("Usage: ./SimpleTorrent [isseed] <torrentpath> n");
+    printf("Usage: ./SimpleTorrent [isseed] <torrentpath> n");
     printf("\t isseed is optional, 1 indicates this is a seed and won't contact other clients\n");
     printf("\t 0 indicates a downloading client and will connect to other clients and receive connections\n");
     exit(-1);
@@ -62,6 +63,7 @@ int main ( int argc, char *argv[] )
 		useage();
 
     globalInfo.pieces_state_arr = NULL;
+    globalInfo.pieces_num_in_peers = NULL;
     globalArgs.port = 8530;
     globalArgs.isseed = 0;
     globalArgs.torrentpath = NULL;
@@ -180,6 +182,7 @@ int main ( int argc, char *argv[] )
     free(tr);
 
     init_pieces_state_arr();
+    init_pieces_num_in_peers();
 
 
 //#ifdef DEBUG

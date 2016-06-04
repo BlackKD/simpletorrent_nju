@@ -22,6 +22,7 @@ struct globalInfo_t{
     int     g_left;
     char    *bitfield;
     int     *pieces_state_arr;
+    int     *pieces_num_in_peers;
     torrentmetadata_t   *g_torrentmeta;
     tracker_data        *g_tracker_response;
 };

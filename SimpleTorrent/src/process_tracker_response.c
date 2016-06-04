@@ -302,3 +302,17 @@ int *init_pieces_state_arr() {
 	globalInfo.pieces_state_arr = arr;
 	return arr;
 }
+
+int *init_pieces_num_in_peers() {
+	if (globalInfo.pieces_num_in_peers != NULL) return NULL;
+
+	int pieces_num = globalInfo.g_torrentmeta->num_pieces;
+	int *arr = (int *)malloc(pieces_num * sizeof(int));
+	for (int i = 0; i < pieces_num; i ++) {
+		arr[i] = 0;
+	}
+	globalInfo.pieces_num_in_peers = arr;
+	return arr;
+}
+
+

@@ -19,5 +19,7 @@ peerdata *find_peer_from_tracker(char peer_ip[16]);
 peer_t *pool_add_peer(int connfd, char peer_ip[16]);
 peerdata *set_peer_disconnect(int connfd);
 void peerpool_remove_node(peer_t *peerT);
+peer_t *find_peer_have_piece(int index);
+void peer_have_piece(peer_t *p, int index);
 
 #endif

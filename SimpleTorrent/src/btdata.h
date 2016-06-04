@@ -83,5 +83,6 @@ typedef struct _peer_t {
     int peer_choking;      // 作为上传者, 我们阻塞远端peer
     int peer_interested;   // 作为下载者, 对远端peer的分片有兴趣
     char peer_ip[16];
+    int *peer_pieces_state;
 } peer_t;
 #endif
