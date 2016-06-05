@@ -33,6 +33,7 @@ peer_t *pool_add_peer(int connfd, char peer_ip[16]) {
 		p->peer_choking    = TRUE;
 		p->peer_interested = FALSE;
 		p->peer_pieces_state = (int *)malloc(sizeof(int) * globalInfo.g_torrentmeta->num_pieces);
+		p->pieces_num_downloaded_from_it = 0;
 	}
 
 	// new peerpool_node_t
@@ -121,7 +122,7 @@ peerdata *find_peer_from_tracker(char peer_ip[16]) {
 	return NULL;
 }
 
-static inline int get_peer_piece_state(peer_t *p, int index) {
+int get_peer_piece_state(peer_t *p, int index) {
 	return p->peer_pieces_state[index];
 }
 
@@ -130,7 +131,7 @@ void peer_have_piece(peer_t *p, int index) {
 	globalInfo.pieces_num_in_peers[index] += 1; 
 }
 
-peer_t *find_peer_have_piece(int index) {
+static peer_t *find_peer_have_piece(int index) {
 	peerpool_node_t *p = g_peerpool_head;
 	while (p != NULL) {
 		if (get_peer_piece_state(p->peer, index) == 1)

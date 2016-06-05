@@ -24,12 +24,13 @@ pthread_mutex_t *file_mutex         = &fileMutex;
 pthread_mutex_t *peer_pool_mutex    = &peer_poolMutex;
 pthread_mutex_t *pieces_state_mutex = &pieces_stateMutex;
 
+static int pieces_requesting = 0;
 #define LOCK_FILE          pthread_mutex_lock(file_mutex);
 #define LOCK_PEER          pthread_mutex_lock(peer_pool_mutex);
-#define LOCK_PIECE         pthread_mutex_lock(pieces_state_mutex);
+#define LOCK_PIECE         if (++pieces_requesting >= 10) pthread_mutex_lock(pieces_state_mutex);
 #define UNLOCK_FILE        pthread_mutex_unlock(file_mutex);
 #define UNLOCK_PEER        pthread_mutex_unlock(peer_pool_mutex);
-#define UNLOCK_PIECE       pthread_mutex_unlock(pieces_state_mutex);
+#define UNLOCK_PIECE       if (pieces_requesting-- >= 10)  pthread_mutex_unlock(pieces_state_mutex);
 
 // =================================== Following functions are some simple tools ==================================================================
 
@@ -51,7 +52,7 @@ int get_bit_at_index(char *bitfield, int index, int bflen) {
 
 	int i   =  7 - index % 8;
 	int bit =  (bitfield[byte] & (1 << i)) == 0 ? 0 : 1;
-	printf("get_bit_at_index: index:%d, i:%d, bitfield[%d]:%d, bit:%d\n", index, i, byte, bitfield[byte], bit);
+	//printf("get_bit_at_index: index:%d, i:%d, bitfield[%d]:%d, bit:%d\n", index, i, byte, bitfield[byte], bit);
 	return bit;
 }
 
@@ -639,6 +640,31 @@ int which_piece_to_request() {
 }
 
 /*
+ * Chose a peer to request the piece
+ */
+peer_t *find_peer_have_piece(int index) {
+	peerpool_node_t *p = g_peerpool_head;
+	peer_t *chosen; 
+
+	while (p != NULL) {
+		if (get_peer_piece_state(p->peer, index) == 1) {
+			chosen = p->peer;
+			break;
+		}
+		p = p->next;
+	}
+
+	while (p != NULL) {
+		if (get_peer_piece_state(p->peer, index) == 1 &&
+		    p->peer->pieces_num_downloaded_from_it < chosen->pieces_num_downloaded_from_it)
+			chosen = p->peer;
+		p = p->next;
+	}
+
+	return chosen;
+}
+
+/*
  * A thread
  * To request all the pieces
  */
@@ -673,7 +699,7 @@ void create_request_file_thread() {
 	}
 }
 
-//============================= Following functions are to handle the received handshakes or messages ==============================================
+//============================= Following functions are to handle the received handshakes or messages =============================================
 
 /*
  * Deal with a handshake:
@@ -849,7 +875,7 @@ static inline void handle_request(int connfd, peer_t *p, int index, int begin, i
         UNLOCK_FILE;
 }
 
-static inline void handle_piece(int connfd, int index, int begin, int block_len, char *block) {
+static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int block_len, char *block) {
 	LOCK_FILE;
 	printf("handle_piece, index:%d, begin:%d, block_len:%d \n", index, begin, block_len);
 	set_block(index, begin, block_len, block);
@@ -864,6 +890,7 @@ static inline void handle_piece(int connfd, int index, int begin, int block_len,
 	if (get_bit_at_index(globalInfo.bitfield, index, bitfield_len) == 1) {
 		// the whole piece is compelted
 		*piece_state = PIECE_COMPLETED;
+		p->pieces_num_downloaded_from_it ++;
 		send_have(index);
 		UNLOCK_PIECE;
 	}
@@ -978,7 +1005,7 @@ void *message_handler(void *arg) {
 					      }
 					      index = reverse_byte_orderi(index);
 					      begin = reverse_byte_orderi(begin);
-					      handle_piece(connfd, index, begin, block_len, block);
+					      handle_piece(connfd, peerT, index, begin, block_len, block);
 					      break;
 				      }
 		           case CANCEL: {

@@ -84,5 +84,6 @@ typedef struct _peer_t {
     int peer_interested;   // 作为下载者, 对远端peer的分片有兴趣
     char peer_ip[16];
     int *peer_pieces_state;
+    int pieces_num_downloaded_from_it;
 } peer_t;
 #endif
