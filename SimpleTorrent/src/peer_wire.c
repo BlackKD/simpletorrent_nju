@@ -798,6 +798,8 @@ static inline void handle_unchoke(peer_t *p) {
 static inline void handle_interested(peer_t *p) {
 	printf("handle_interested \n");
 	p->am_interested = 1;
+	if (p->peer_choking == 1)
+		send_unchoke(p->connfd, p);
 }
 
 static inline void handle_notinterested(peer_t *p) {
@@ -867,7 +869,7 @@ static inline void handle_request(int connfd, peer_t *p, int index, int begin, i
 	LOCK_FILE;
 
 	printf("handle_request, index:%d, begin:%d, length:%d \n", index, begin, length);
-	if (p->peer_choking == 1)
+	if (p->peer_choking == 0)
 		send_piece(connfd, index, begin, length);
 	else 
 		printf("This peer is choking %s\n", p->peer_ip);

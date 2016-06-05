@@ -1,0 +1,33 @@
+META INFO
+Announce: http://114.212.191.43:6969/announce
+Created On: Sun Jun  5 14:08:45 2016
+Piece length: 262144
+Created with: NjuCS-BitTorrent-Client/1.0
+FILES INFO
+<1> ../data/Wildlife.wmv [26246026]
+Total: 25 MB
+Listening on 0.0.0.0:2706
+Press 'h' or '?' for help (display/control client options).
+- 0/0/1 [1/101/1] 0MB,0MB | 0,0K/s | 0,0K E:0,0 Connecting                      
+Checking completed.
+FILES INFO
+<1> ../data/Wildlife.wmv [26246026] 101/101 (100%)
+Total: 25 MB
+Seed for others 72 hours
+\ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1       
+| 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+/ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+- 0/1/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+\ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+| 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+/ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+- 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+\ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+| 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+/ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+- 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+\ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+| 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 
+/ 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,1 Connecting
+- 0/0/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,2           
+\ 0/1/2 [101/101/101] 0MB,0MB | 0,0K/s | 0,0K E:0,2 
