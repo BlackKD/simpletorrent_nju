@@ -606,6 +606,10 @@ void request_a_piece(int connfd, peer_t *p, int index, int length) {
 	globalInfo.pieces_state_arr[index] = PIECE_REQUESTING;
 	send_interested(connfd, p);
 	for (int i = 0; i < sub_pieces_num; i ++) {
+		if (index * length + sub_begin + sub_piece_len > globalInfo.g_torrentmeta->flist.size)
+		{
+		sub_piece_len = globalInfo.g_torrentmeta->flist.size - index * length - sub_begin;
+		}	
 		send_request(connfd, index, sub_begin, sub_piece_len);
 		sub_begin += sub_piece_len;
 	}
@@ -860,8 +864,6 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 		        // globalInfo.pieces_state_arr[i] = PIECE_REQUESTING;
 		}
 	}
-
-	UNLOCK_FILE;
 	printf("handle_bitfield successfully\n");
 }
 
