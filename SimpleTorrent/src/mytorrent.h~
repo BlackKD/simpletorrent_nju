@@ -9,6 +9,7 @@
 #define PIECE_COMPLETED  1
 #define PIECE_REQUESTING 0
 #define PIECE_HAVNT      2
+#define PIECE_END_GAME_GETED 3
 
 struct globalInfo_t{
     char    g_my_ip[16];

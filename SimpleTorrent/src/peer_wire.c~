@@ -27,10 +27,10 @@ pthread_mutex_t *pieces_state_mutex = &pieces_stateMutex;
 static int pieces_requesting = 0;
 #define LOCK_FILE          pthread_mutex_lock(file_mutex);
 #define LOCK_PEER          pthread_mutex_lock(peer_pool_mutex);
-#define LOCK_PIECE         if (++pieces_requesting >= 10) pthread_mutex_lock(pieces_state_mutex);
+#define LOCK_PIECE         if (++pieces_requesting >= 5) pthread_mutex_lock(pieces_state_mutex);
 #define UNLOCK_FILE        pthread_mutex_unlock(file_mutex);
 #define UNLOCK_PEER        pthread_mutex_unlock(peer_pool_mutex);
-#define UNLOCK_PIECE       if (pieces_requesting-- >= 10)  pthread_mutex_unlock(pieces_state_mutex);
+#define UNLOCK_PIECE       if (pieces_requesting-- >= 5) pthread_mutex_unlock(pieces_state_mutex);
 
 // =================================== Following functions are some simple tools ==================================================================
 
@@ -467,7 +467,6 @@ int send_have(int piece_index) {
 int send_bitfield(int connfd) {
 	LOCK_FILE;
 
-	printf("send_bitfield:\n");
 	int x_len = globalInfo.g_torrentmeta->num_pieces/8 + 1; // bitfield's len
 	char buffer[5];
 	int *len = (int *)buffer;
@@ -480,15 +479,15 @@ int send_bitfield(int connfd) {
 		return -1;
 	}
 
-	printf("send_bitfield x_len:%d\n", x_len);
+	printf("send_bitfield x_len:%d, content: ", x_len);
 	globalInfo.bitfield = gen_bitfield(globalInfo.g_torrentmeta->pieces, 
 			globalInfo.g_torrentmeta->piece_len,
 			globalInfo.g_torrentmeta->num_pieces);
 
-	printf("bitfield: ");
 	for(int i = 0; i < x_len; i ++) 
-		printf("(send_bitfield) %x ", globalInfo.bitfield[i]);
+		printf("%x ", globalInfo.bitfield[i]);
 	printf("\n");
+
 	if (Send(connfd, globalInfo.bitfield, x_len) < 0) {
 		printf("send_bitfield send bitfield error\n");
 		UNLOCK_FILE;
@@ -545,7 +544,7 @@ int send_piece(int connfd, int index, int begin, int block_len) {
 	buffer[4] = PIECE;
 
 	if (get_block(index, begin, block_len, block) < 0) {
-		printf("send_piece, index:%d, begin:%d, block_len:%d failed\n",index, begin, block_len);
+		printf("Send_piece: index %d, begin %d, block_len %d failed\n",index, begin, block_len);
 		return -1;
 	}
 
@@ -561,17 +560,18 @@ int send_piece(int connfd, int index, int begin, int block_len) {
 		return -1;
 	}
 
-	printf("send_piece: index %d, begin %d, block_len %d successfully\n", index, begin, block_len);
+	printf("Send_piece: index %d, begin %d, block_len %d successfully\n", index, begin, block_len);
         free(buffer);
 	return 1;
 }
 
 /*
- * Send a cancle to the peer
+ * Send a cancel to the peer
  * On success, 1 is returned
  * On error,  -1 is returned
  */
-int send_cancle(int connfd, int index, int begin, int length) {
+int send_cancel(int connfd, int index, int begin, int length) {
+	printf("Send cancel\n");
 	char buffer[17];
 	int *len = (int *)buffer;
 	int *index_ = (int *)(&(buffer[5]));
@@ -594,11 +594,13 @@ int send_cancle(int connfd, int index, int begin, int length) {
 
 //========================================= Following functions are designed for requesting pieces ================================================
 
+static int rest_pieces_num;
+static int is_end_game = 0;
 /*
  * Seperate a piece request to 4 sub-piece requests
  */
 void request_a_piece(int connfd, peer_t *p, int index, int length) {
-	printf("requesting 4 sub-pieces of piece%d\n", index);
+	printf("Requesting 4 sub-pieces of piece%d from %s\n", index, p->peer_ip);
 	int sub_pieces_num = 4;
 	int sub_piece_len  = length / sub_pieces_num; //
 	int sub_begin = 0;
@@ -608,8 +610,8 @@ void request_a_piece(int connfd, peer_t *p, int index, int length) {
 	for (int i = 0; i < sub_pieces_num; i ++) {
 		if (index * length + sub_begin + sub_piece_len > globalInfo.g_torrentmeta->flist.size)
 		{
-		sub_piece_len = globalInfo.g_torrentmeta->flist.size - index * length - sub_begin;
-		if (sub_piece_len <= 0) return;
+			sub_piece_len = globalInfo.g_torrentmeta->flist.size - index * length - sub_begin;
+			if (sub_piece_len <= 0) return;
 		}	
 		send_request(connfd, index, sub_begin, sub_piece_len);
 		sub_begin += sub_piece_len;
@@ -637,12 +639,13 @@ int which_piece_to_request() {
 
 	min_val = arr[min];
 	for (int i = min; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
-		if (arr[i] < min_val)
+		if (arr[i] < min_val) {
 			min = i;
+			min_val = arr[min];
+		}
 	}
-	printf("which_piece_to_request: piece index %d\n", min);
-	//return min;
-	return 100;
+	printf("Piece %d is chosen to be requested, its num in peers is: %d\n", min, min_val);
+	return min;
 }
 
 /*
@@ -672,10 +675,13 @@ peer_t *find_peer_have_piece(int index) {
 
 /*
  * A thread
- * To request all the pieces
+ * To request all the pieces, End-game stage included
  */
 void *request_file(void *arg) {
-	while (globalArgs.isseed == 0) { 
+	int min_rest_num = 5;
+	rest_pieces_num = (globalArgs.isseed == 1) ? 0 : globalInfo.g_torrentmeta->num_pieces;
+
+	while (globalArgs.isseed == 0 && rest_pieces_num > min_rest_num) { 
 		int index = which_piece_to_request();
 		if (index >= 0) {
 			peer_t *p = find_peer_have_piece(index);
@@ -684,8 +690,28 @@ void *request_file(void *arg) {
 				request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
 			}
 		}
-		else 
+		else // no piece can be requested, wait
 			sleep(1); 
+	}
+
+	/* End Game */
+	if (rest_pieces_num <= 0) return NULL;
+	is_end_game = 1;
+	printf("\n\n\n End Game \n\n\n");
+	while (globalArgs.isseed == 0) {
+		int index = which_piece_to_request();
+		if (index >= 0) {
+			// send request to every peer
+			peerpool_node_t *p = g_peerpool_head;
+			while (p != NULL) {
+				if (get_peer_piece_state(p->peer, index) == 1) {
+					LOCK_PIECE;
+					request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
+				}
+			}
+		}
+		else // no piece can be requested, wait
+			sleep(1);
 	}
 }
 
@@ -836,10 +862,10 @@ static inline void handle_have(int connfd, peer_t *p, int index) {
 static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bitfield_len) { 
 	printf("handle_bitfield:\n");
 	int pieces_num = globalInfo.g_torrentmeta->num_pieces;
-	if (bitfield_len < (pieces_num/8 + 1)) {
+	/*if (bitfield_len < (pieces_num/8 + 1)) {
 			printf("handle_bitfield, bitfield_len %d < %d, error\n", bitfield_len, pieces_num/8 + 1); 
 			return;
-	}
+	}*/
 	//printf("handle_bitfield, bitfield_len:%d, bitfield:", bitfield_len);
 	//for (int i = 0; i < bitfield_len; i ++) printf("%x ", (unsigned char)(bitfield[i]));
 	//printf("\n");
@@ -884,21 +910,40 @@ static inline void handle_request(int connfd, peer_t *p, int index, int begin, i
 
 static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int block_len, char *block) {
 	LOCK_FILE;
-	printf("handle_piece, index:%d, begin:%d, block_len:%d \n", index, begin, block_len);
-	set_block(index, begin, block_len, block);
+	printf("Handle_piece from %s: index %d, begin %d, block_len %d \n", p->peer_ip, index, begin, block_len);
+
+	if (is_end_game != 1) {// not end-game, set the block directly 
+		set_block(index, begin, block_len, block);
+	}
+	else {
+		if (globalInfo.pieces_state_arr[index] == PIECE_REQUESTING) { // this peer's block came first
+			set_block(index, begin, block_len, block);
+			globalInfo.pieces_state_arr[index] = PIECE_REQUESTING + connfd;
+		}
+		else if (globalInfo.pieces_state_arr[index] == PIECE_REQUESTING + connfd) { // the same peer
+			set_block(index, begin, block_len, block);
+		}
+		else { // other peer
+			// send cancel
+			send_cancel(connfd, index, begin, block_len);
+		}
+
+	}
+
+
+	/* Check whether this piece completed or not */
 	int bitfield_len = globalInfo.g_torrentmeta->num_pieces/8 + 1;
-
 	globalInfo.bitfield = gen_bitfield(globalInfo.g_torrentmeta->pieces, 
-			globalInfo.g_torrentmeta->piece_len, 
-			globalInfo.g_torrentmeta->num_pieces);
+				globalInfo.g_torrentmeta->piece_len, 
+				globalInfo.g_torrentmeta->num_pieces);
 
-	// check whether this piece completed or not
 	int *piece_state = &(globalInfo.pieces_state_arr[index]);
 	if (get_bit_at_index(globalInfo.bitfield, index, bitfield_len) == 1) {
 		// the whole piece is compelted
 		*piece_state = PIECE_COMPLETED;
 		p->pieces_num_downloaded_from_it ++;
 		send_have(index);
+		rest_pieces_num --;
 		UNLOCK_PIECE;
 	}
 	else {
@@ -906,16 +951,15 @@ static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int
 		return;
 	}
 
-	// check whether the whole file completed or not 
+	/* Check whether the whole file completed or not */
 	for (int i = 0; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
-		printf("check file if completed ");
 		if (get_bit_at_index(globalInfo.bitfield, i, bitfield_len) != 1) { 
 			UNLOCK_FILE;
 			return; // file transform is not completed
 		}
 	}
 	// file transform is completed, close the connfd
-	printf("This file is completed\n");
+	printf("\n\nThis file is completed\n\n");
 	globalArgs.isseed = 1;
 	close(connfd);
 	
@@ -923,6 +967,7 @@ static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int
 }
 
 static inline void handle_cancel(int connfd, int index, int begin, int length) {
+	printf("Handle_cancel\n");
 	// sorry??
 }
 
@@ -939,7 +984,7 @@ void *message_handler(void *arg) {
   int count = 0;
   int len;
   while (Recv(connfd, &len, sizeof(int)) > 0) {
-	  printf("received len: %x, reversed: %x connfd:%d\n", len, reverse_byte_orderi(len),connfd);
+	  printf("received len: %x connfd:%d\n", len, reverse_byte_orderi(len),connfd);
 	  len = reverse_byte_orderi(len);
 	  if (len > 0) {
 		  char id;

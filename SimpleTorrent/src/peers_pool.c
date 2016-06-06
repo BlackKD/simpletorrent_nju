@@ -110,11 +110,11 @@ peerdata *find_peer_from_tracker(char peer_ip[16]) {
 	peerdata     *peerlist  = globalInfo.g_tracker_response->peers;
 	int           peers_num = globalInfo.g_tracker_response->numpeers;
 
-	printf("find_peer_from_tracker, peers_num:%d, ", peers_num);
+	//printf("find_peer_from_tracker, peers_num:%d, ", peers_num);
 	for (int i = 0; i < peers_num; i++) {
-		printf("\n%d: peer_ip: %s peer.ip: %s ", i, peer_ip, peerlist[i].ip);
+		//printf("\n%d: peer_ip: %s peer.ip: %s ", i, peer_ip, peerlist[i].ip);
 		if (strncmp(peer_ip, peerlist[i].ip, 16) == 0) {
-			printf("find it\n");
+			//printf("find it\n");
 			return &(peerlist[i]);
 		}
 	}

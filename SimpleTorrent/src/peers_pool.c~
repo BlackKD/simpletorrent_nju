@@ -122,7 +122,7 @@ peerdata *find_peer_from_tracker(char peer_ip[16]) {
 	return NULL;
 }
 
-static inline int get_peer_piece_state(peer_t *p, int index) {
+int get_peer_piece_state(peer_t *p, int index) {
 	return p->peer_pieces_state[index];
 }
 
