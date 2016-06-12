@@ -153,6 +153,7 @@ int peer_accept(int connfd) {
     // assume that all the peers connect us is valid
     if (! (p == NULL || (p != NULL && p->state == DISCONNECT))) {
 	    printf("peer %x, peer state: %d ", p, (p==NULL)?-1:p->state);
+	    UNLOCK_PEER;
             return -1;
     }
     if (p != NULL) p->state = CONNECT;
@@ -161,6 +162,7 @@ int peer_accept(int connfd) {
     if ( pthread_create(peer_mt, NULL, &wait_first_handshake, (void *)connfd) != 0 ) {
         printf("Error when create wait_first_handshake thread: %s\n", strerror(errno));
 	free(peer_mt);
+	UNLOCK_PEER;
         return -1;
     }	
     
@@ -446,7 +448,7 @@ int send_have(int piece_index) {
 	
 	peerpool_node_t *p = g_peerpool_head;
 	while (p != NULL) {
-		if (p->peer->peer_pieces_state[piece_index] != 1) {
+		if (p->peer->peer_pieces_state[piece_index] != PEER_HAVE) {
 			int connfd = p->peer->connfd;
 			if (Send(connfd, buffer, 9) < 0) {
 				printf("send_have error.\n");
@@ -639,7 +641,7 @@ int which_piece_to_request() {
 
 	min_val = arr[min];
 	for (int i = min; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
-		if (arr[i] > 0 && arr[i] < min_val) {
+		if (arr[i] > 0 && my_piece_state[i] == PIECE_HAVNT && arr[i] < min_val) {
 			min = i;
 			min_val = arr[min];
 		}
@@ -657,7 +659,7 @@ peer_t *find_peer_have_piece(int index) {
 	peer_t *chosen = NULL; 
 
 	while (p != NULL) {
-		if (get_peer_piece_state(p->peer, index) == 1) {
+		if (get_peer_piece_state(p->peer, index) > PEER_HAVNT) {
 			chosen = p->peer;
 			break;
 		}
@@ -665,7 +667,7 @@ peer_t *find_peer_have_piece(int index) {
 	}
 
 	while (p != NULL) {
-		if (get_peer_piece_state(p->peer, index) == 1 &&
+		if (get_peer_piece_state(p->peer, index) > PEER_HAVNT &&
 		    p->peer->pieces_num_downloaded_from_it < chosen->pieces_num_downloaded_from_it)
 			chosen = p->peer;
 		p = p->next;
@@ -684,18 +686,22 @@ void *request_file(void *arg) {
 	have_pieces_num  = globalInfo.g_torrentmeta->num_pieces - globalInfo.rest_pieces_num;
 
 	while (globalArgs.isseed == 0 && globalInfo.rest_pieces_num > min_rest_num) { 
-		int index = which_piece_to_request();
-		if (index >= 0) {
-			peer_t *p = find_peer_have_piece(index);
-			if (p != NULL) {
-				LOCK_PIECE; // will be unlocked in handle_piece when received the whole piece
-				request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
-		                p->pieces_num_downloaded_from_it ++;
-				globalInfo.rest_pieces_num --;
+		for (int j = 5; j >= 0; j ++) {
+			int index = which_piece_to_request();
+			if (index >= 0) {
+				peer_t *p = find_peer_have_piece(index);
+				if (p != NULL) {
+					// LOCK_PIECE; // will be unlocked in handle_piece when received the whole piece
+					request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
+					p->peer_pieces_state[index] = PEER_BE_REQUESTED;
+		                	p->pieces_num_downloaded_from_it ++;
+					globalInfo.rest_pieces_num --;
+				}
 			}
+			else // no piece can be requested, wait
+				sleep(1); 
 		}
-		else // no piece can be requested, wait
-			sleep(1); 
+		sleep(2);
 	}
 
 	/* End Game */
@@ -706,12 +712,13 @@ void *request_file(void *arg) {
 	while (globalArgs.isseed == 0) {
 		int index = which_piece_to_request();
 		if (index >= 0) {
-			LOCK_PIECE;
+			//LOCK_PIECE;
 			// send request to every peer
 			peerpool_node_t *p = g_peerpool_head;
 			while (p != NULL) {
-				if (get_peer_piece_state(p->peer, index) == 1) {
+				if (get_peer_piece_state(p->peer, index) == PEER_HAVE) {
 					request_a_piece(p->peer->connfd, p->peer, index, globalInfo.g_torrentmeta->piece_len);
+					p->peer->peer_pieces_state[index] = PEER_BE_REQUESTED;
 				}
 				p = p->next;
 			}
@@ -894,8 +901,6 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 				send_unchoke(connfd, p);
 			if (p -> peer_interested == 0)
 				send_interested(connfd, p);
-			// request_a_piece(connfd, p, i, globalInfo.g_torrentmeta->piece_len);
-		        // globalInfo.pieces_state_arr[i] = PIECE_REQUESTING;
 		}
 	}
 	UNLOCK_FILE;
@@ -918,9 +923,10 @@ static inline int handle_request(int connfd, peer_t *p, int index, int begin, in
 	return 1;
 }
 
-static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int block_len, char *block) {
+static inline int handle_piece(int connfd, peer_t *p, int index, int begin, int block_len, char *block) {
 	LOCK_FILE;
 	printf("Handle_piece from %s: index %d, begin %d, block_len %d \n", p->peer_ip, index, begin, block_len);
+	int ret = 1;
 
 	if (is_end_game != 1) {// not end-game, set the block directly 
 		set_block(index, begin, block_len, block);
@@ -935,9 +941,10 @@ static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int
 		}
 		else { // other peer
 			// send cancel
-			send_cancel(connfd, index, begin, block_len);
+			if (send_cancel(connfd, index, begin, block_len) < 0)
+				ret = -1;
 			UNLOCK_FILE;
-			return;
+			return ret;
 		}
 
 	}
@@ -957,18 +964,18 @@ static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int
 //		globalInfo.rest_pieces_num --;
                 have_pieces_num ++;
 		
-		UNLOCK_PIECE;
+		//UNLOCK_PIECE;
 	}
 	else {
 		UNLOCK_FILE;
-		return;
+		return ret;
 	}
 
 	/* Check whether the whole file completed or not */
 	for (int i = 0; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
 		if (get_bit_at_index(globalInfo.bitfield, i, bitfield_len) != 1) { 
 			UNLOCK_FILE;
-			return; // file transform is not completed
+			return ret; // file transform is not completed
 		}
 	}
 	// file transform is completed, close the connfd
@@ -977,6 +984,7 @@ static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int
 	//close(connfd);
 	
 	UNLOCK_FILE;
+	return ret;
 }
 
 static inline void handle_cancel(int connfd, int index, int begin, int length) {
@@ -1071,7 +1079,8 @@ void *message_handler(void *arg) {
 					      }
 					      index = reverse_byte_orderi(index);
 					      begin = reverse_byte_orderi(begin);
-					      handle_piece(connfd, peerT, index, begin, block_len, block);
+					      if (handle_piece(connfd, peerT, index, begin, block_len, block) < 0)
+						      goto error_disconnect;
 					      break;
 				      }
 		           case CANCEL: {
@@ -1114,7 +1123,22 @@ error_disconnect:
   {  
 	  LOCK_PEER;
 	  printf("a peer disconnect %s due to %s\n", peerInfo->peerT->peer_ip, strerror(errno));
+
+	  /* turn pieces_state_arr */
+	  for (int i = 0; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
+		  printf("checking piece %d\n", i);
+		  if (peerT->peer_pieces_state[i] > PEER_HAVNT) {
+			  globalInfo.pieces_num_in_peers[i] --;
+		  }
+		  if (peerT->peer_pieces_state[i] == PEER_BE_REQUESTED) {
+			  if (globalInfo.pieces_state_arr[i] == PIECE_REQUESTING) {
+			  	globalInfo.pieces_state_arr[i] = PIECE_HAVNT;
+				printf("piece state PIECE_REQUESTING -> PIECE_HAVNT\n");
+			  }
+		  }
+	  }
 	  peerpool_remove_node(peerInfo->peerT);
+
 	  if (peerInfo->peerData != NULL) {
 		  printf("peer exist: turn its state to DISCONNECT\n");
 		  peerInfo->peerData->state = DISCONNECT;

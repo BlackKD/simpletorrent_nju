@@ -11,6 +11,10 @@
 #define PIECE_HAVNT      2
 #define PIECE_END_GAME_GETED 3
 
+#define PEER_HAVE 1
+#define PEER_HAVNT 0
+#define PEER_BE_REQUESTED 2
+
 struct globalInfo_t{
     char    g_my_ip[16];
     char    g_tracker_ip[16];

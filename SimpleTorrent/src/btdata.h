@@ -1,5 +1,4 @@
-#include <pthread.h>
-#include "bencode.h"
+#include <pthread.h> #include "bencode.h"
 #include "fileio.h"
 
 #ifndef BTDATA_H
