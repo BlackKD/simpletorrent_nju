@@ -639,7 +639,7 @@ int which_piece_to_request() {
 
 	min_val = arr[min];
 	for (int i = min; i < globalInfo.g_torrentmeta->num_pieces; i ++) {
-		if (arr[i] < min_val) {
+		if (arr[i] > 0 && arr[i] < min_val) {
 			min = i;
 			min_val = arr[min];
 		}
@@ -654,7 +654,7 @@ int which_piece_to_request() {
 peer_t *find_peer_have_piece(int index) {
 	LOCK_PEER;
 	peerpool_node_t *p = g_peerpool_head;
-	peer_t *chosen; 
+	peer_t *chosen = NULL; 
 
 	while (p != NULL) {
 		if (get_peer_piece_state(p->peer, index) == 1) {
@@ -690,6 +690,7 @@ void *request_file(void *arg) {
 			if (p != NULL) {
 				LOCK_PIECE; // will be unlocked in handle_piece when received the whole piece
 				request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
+		                p->pieces_num_downloaded_from_it ++;
 				globalInfo.rest_pieces_num --;
 			}
 		}
@@ -901,16 +902,20 @@ static inline void handle_bitfield(int connfd, peer_t *p, char *bitfield, int bi
 	printf("handle_bitfield successfully\n");
 }
 
-static inline void handle_request(int connfd, peer_t *p, int index, int begin, int length) {	
+static inline int handle_request(int connfd, peer_t *p, int index, int begin, int length) {	
 	LOCK_FILE;
 
 	printf("handle_request, index:%d, begin:%d, length:%d \n", index, begin, length);
-	if (p->peer_choking == 0)
-		send_piece(connfd, index, begin, length);
+	if (p->peer_choking == 0) {
+		if (send_piece(connfd, index, begin, length) < 0)
+			return -1;
+	}
 	else 
 		printf("This peer is choking %s\n", p->peer_ip);
 	
+	
         UNLOCK_FILE;
+	return 1;
 }
 
 static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int block_len, char *block) {
@@ -948,7 +953,6 @@ static inline void handle_piece(int connfd, peer_t *p, int index, int begin, int
 	if (get_bit_at_index(globalInfo.bitfield, index, bitfield_len) == 1) {
 		// the whole piece is compelted
 		*piece_state = PIECE_COMPLETED;
-		p->pieces_num_downloaded_from_it ++;
 		send_have(index);
 //		globalInfo.rest_pieces_num --;
                 have_pieces_num ++;
@@ -994,7 +998,6 @@ void *message_handler(void *arg) {
   int count = 0;
   int len;
   while (Recv(connfd, &len, sizeof(int)) > 0) {
-	  printf("received len: %x connfd:%d\n", len, reverse_byte_orderi(len),connfd);
 	  len = reverse_byte_orderi(len);
 	  if (len > 0) {
 		  char id;
@@ -1046,7 +1049,8 @@ void *message_handler(void *arg) {
 						index = reverse_byte_orderi(index);
 						begin = reverse_byte_orderi(begin);
 						length= reverse_byte_orderi(length);
-						handle_request(connfd, peerT, index, begin, length);
+						if (handle_request(connfd, peerT, index, begin, length) < 0)
+							goto error_disconnect;
 						break;
 					}
 			  case PIECE: {
