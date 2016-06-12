@@ -265,7 +265,7 @@ void *wait_second_handshake(void *arg) {
  	int connfd = (int)arg;
  	handshake_seg seg;
 
- 	if (recv(connfd, &seg, sizeof(seg), 0) <= 0) {
+ 	if (Recv(connfd, &seg, sizeof(seg)) <= 0) {
  		printf("recv second_handshake error\n");
  		return NULL;
  	}
@@ -686,12 +686,11 @@ void *request_file(void *arg) {
 	have_pieces_num  = globalInfo.g_torrentmeta->num_pieces - globalInfo.rest_pieces_num;
 
 	while (globalArgs.isseed == 0 && globalInfo.rest_pieces_num > min_rest_num) { 
-		for (int j = 5; j >= 0; j ++) {
 			int index = which_piece_to_request();
 			if (index >= 0) {
 				peer_t *p = find_peer_have_piece(index);
 				if (p != NULL) {
-					// LOCK_PIECE; // will be unlocked in handle_piece when received the whole piece
+					 LOCK_PIECE; // will be unlocked in handle_piece when received the whole piece
 					request_a_piece(p->connfd, p, index, globalInfo.g_torrentmeta->piece_len);
 					p->peer_pieces_state[index] = PEER_BE_REQUESTED;
 		                	p->pieces_num_downloaded_from_it ++;
@@ -700,8 +699,6 @@ void *request_file(void *arg) {
 			}
 			else // no piece can be requested, wait
 				sleep(1); 
-		}
-		sleep(2);
 	}
 
 	/* End Game */
@@ -712,7 +709,7 @@ void *request_file(void *arg) {
 	while (globalArgs.isseed == 0) {
 		int index = which_piece_to_request();
 		if (index >= 0) {
-			//LOCK_PIECE;
+			LOCK_PIECE;
 			// send request to every peer
 			peerpool_node_t *p = g_peerpool_head;
 			while (p != NULL) {
@@ -826,7 +823,7 @@ int handshake_handler(handshake_seg * seg, int flag, int connfd) {
 static inline void handle_keepalive(int connfd) {
 	// do nothing
 	printf("handle_keepalive\n");
-	send_keepalive(connfd);
+	//send_keepalive(connfd);
 }
 
 
@@ -966,7 +963,7 @@ static inline int handle_piece(int connfd, peer_t *p, int index, int begin, int 
 //		globalInfo.rest_pieces_num --;
                 have_pieces_num ++;
 		
-		//UNLOCK_PIECE;
+		UNLOCK_PIECE;
 	}
 	else {
 		UNLOCK_FILE;
@@ -1078,7 +1075,9 @@ void *message_handler(void *arg) {
 					      if (Recv(connfd, block, block_len) <= 0) {
 						      printf("Recv PIECE block error\n");
 						      goto error_disconnect;
-					      }
+					      
+					     }
+					      printf("old index:%d,%d\n",index,begin);
 					      index = reverse_byte_orderi(index);
 					      begin = reverse_byte_orderi(begin);
 					      if (handle_piece(connfd, peerT, index, begin, block_len, block) < 0)
@@ -1135,6 +1134,7 @@ error_disconnect:
 		  if (peerT->peer_pieces_state[i] == PEER_BE_REQUESTED) {
 			  if (globalInfo.pieces_state_arr[i] == PIECE_REQUESTING) {
 			  	globalInfo.pieces_state_arr[i] = PIECE_HAVNT;
+				UNLOCK_PIECE;
 				printf("piece state PIECE_REQUESTING -> PIECE_HAVNT\n");
 			  }
 		  }
