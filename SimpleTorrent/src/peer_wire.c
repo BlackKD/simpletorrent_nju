@@ -652,6 +652,7 @@ int which_piece_to_request() {
  * Chose a peer to request the piece
  */
 peer_t *find_peer_have_piece(int index) {
+	LOCK_PEER;
 	peerpool_node_t *p = g_peerpool_head;
 	peer_t *chosen; 
 
@@ -670,6 +671,7 @@ peer_t *find_peer_have_piece(int index) {
 		p = p->next;
 	}
 
+	UNLOCK_PEER;
 	return chosen;
 }
 
@@ -978,6 +980,7 @@ static inline void handle_cancel(int connfd, int index, int begin, int length) {
 	// sorry??
 }
 
+
 /*
  * handle the messages following handshake
  */
@@ -1105,14 +1108,14 @@ void *message_handler(void *arg) {
   // deal with disconnect
 error_disconnect:
   {  
-	  pthread_mutex_lock(peer_pool_mutex);
+	  LOCK_PEER;
 	  printf("a peer disconnect %s due to %s\n", peerInfo->peerT->peer_ip, strerror(errno));
 	  peerpool_remove_node(peerInfo->peerT);
 	  if (peerInfo->peerData != NULL) {
 		  printf("peer exist: turn its state to DISCONNECT\n");
 		  peerInfo->peerData->state = DISCONNECT;
 	  }
-	  pthread_mutex_unlock(peer_pool_mutex);
+	  UNLOCK_PEER;
   }
 
   free(peerInfo);

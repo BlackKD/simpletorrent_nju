@@ -26,6 +26,10 @@ struct globalArgs_t globalArgs;
 int listenfd;
 struct globalInfo_t globalInfo;
 
+void ignore_sigpipe() {
+	signal(SIGPIPE, SIG_IGN);
+}
+
 void useage()
 {
     printf("Usage: ./SimpleTorrent [isseed] <torrentpath> n");
@@ -183,6 +187,7 @@ int main ( int argc, char *argv[] )
 
     init_pieces_state_arr();
     init_pieces_num_in_peers();
+    ignore_sigpipe();
     create_request_file_thread();
 
 
