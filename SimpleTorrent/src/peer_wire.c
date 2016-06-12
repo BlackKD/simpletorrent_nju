@@ -912,8 +912,10 @@ static inline int handle_request(int connfd, peer_t *p, int index, int begin, in
 
 	printf("handle_request, index:%d, begin:%d, length:%d \n", index, begin, length);
 	if (p->peer_choking == 0) {
-		if (send_piece(connfd, index, begin, length) < 0)
+		if (send_piece(connfd, index, begin, length) < 0) {
+			UNLOCK_FILE;
 			return -1;
+		}
 	}
 	else 
 		printf("This peer is choking %s\n", p->peer_ip);
