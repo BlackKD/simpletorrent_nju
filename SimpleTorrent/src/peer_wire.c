@@ -962,6 +962,7 @@ static inline int handle_piece(int connfd, peer_t *p, int index, int begin, int 
 		send_have(index);
 //		globalInfo.rest_pieces_num --;
                 have_pieces_num ++;
+		p->peer_pieces_state[index] = PEER_HAVE;
 		
 		UNLOCK_PIECE;
 	}
